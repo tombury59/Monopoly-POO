@@ -83,59 +83,88 @@ for ($i = 0; $i < 2000; $i++) {
 // ---------------------------------------------------------------------------
 // 2. Démonstration des maisons / hôtels et du loyer (point 5)
 // ---------------------------------------------------------------------------
-// ligne('CONSTRUCTION & LOYERS (point 5)');
+ligne('CONSTRUCTION & LOYERS (point 5)');
 
-// // On repart d'une partie neuve pour un scénario maîtrisé
-// $demo   = new Game(['Alice', 'Bob']);
-// $demo->start();
-// $board  = $demo->getBoard();
-// [$alice, $bob] = $demo->getPlayers();
+// On repart d'une partie neuve pour un scénario maîtrisé
+$demo   = new Game(['Alice', 'Bob']);
+$demo->start();
+$board  = $demo->getBoard();
+[$alice, $bob] = $demo->getPlayers();
 
-// $belleville = $board->getTileAt(new Square(1)); // BROWN
-// $lecourbe   = $board->getTileAt(new Square(3)); // BROWN
+$belleville = $board->getTileAt(new Square(1)); // BROWN
+$lecourbe   = $board->getTileAt(new Square(3)); // BROWN
 
-// // Alice n'a qu'une seule case du groupe : loyer de base
-// $belleville->setOwner($alice);
-// echo "Loyer Belleville (Alice possède 1 seule case BROWN) : {$belleville->getRent()}" . PHP_EOL;
+// Alice n'a qu'une seule case du groupe : loyer de base
+$belleville->setOwner($alice);
+echo "Loyer Belleville (Alice possède 1 seule case BROWN) : {$belleville->getRent()}" . PHP_EOL;
 
-// $bob->setPosition(new Square(1));
-// $avant = $bob->getMoney();
-// $belleville->landOn($bob, $demo);
-// echo "  Bob s'arrête dessus et paie : " . ($avant - $bob->getMoney()) . PHP_EOL;
+$bob->setPosition(new Square(1));
+$avant = $bob->getMoney();
+$belleville->landOn($bob, $demo);
+echo "  Bob s'arrête dessus et paie : " . ($avant - $bob->getMoney()) . PHP_EOL;
 
-// // Alice complète le groupe BROWN : loyer doublé (monopole nu)
-// $lecourbe->setOwner($alice);
-// echo PHP_EOL . "Alice possède désormais TOUT le groupe BROWN (sans maison)." . PHP_EOL;
-// $avant = $bob->getMoney();
-// $belleville->landOn($bob, $demo);
-// echo "  Bob paie (loyer doublé) : " . ($avant - $bob->getMoney()) . PHP_EOL;
+// Alice complète le groupe BROWN : loyer doublé (monopole nu)
+$lecourbe->setOwner($alice);
+echo PHP_EOL . "Alice possède désormais TOUT le groupe BROWN (sans maison)." . PHP_EOL;
+$avant = $bob->getMoney();
+$belleville->landOn($bob, $demo);
+echo "  Bob paie (loyer doublé) : " . ($avant - $bob->getMoney()) . PHP_EOL;
 
-// // Alice construit des maisons : le loyer suit la grille officielle
-// echo PHP_EOL . "Alice construit sur Boulevard de Belleville :" . PHP_EOL;
-// for ($niveau = 1; $niveau <= 5; $niveau++) {
-//     try {
-//         $demo->buildHouse($belleville);
-//         $etiquette = $belleville->getBuildLevel() === 5 ? 'hôtel' : "{$belleville->getBuildLevel()} maison(s)";
-//         echo "  niveau {$belleville->getBuildLevel()} ({$etiquette}) -> loyer {$belleville->getRent()}, argent Alice : {$alice->getMoney()}" . PHP_EOL;
-//     } catch (MonopolyException $e) {
-//         echo "  construction impossible : {$e->getMessage()}" . PHP_EOL;
-//         break;
-//     }
-// }
+// Alice construit des maisons : le loyer suit la grille officielle
+echo PHP_EOL . "Alice construit sur Boulevard de Belleville :" . PHP_EOL;
+for ($niveau = 1; $niveau <= 5; $niveau++) {
+    try {
+        $demo->buildHouse($belleville);
+        $etiquette = $belleville->getBuildLevel() === 5 ? 'hôtel' : "{$belleville->getBuildLevel()} maison(s)";
+        echo "  niveau {$belleville->getBuildLevel()} ({$etiquette}) -> loyer {$belleville->getRent()}, argent Alice : {$alice->getMoney()}" . PHP_EOL;
+    } catch (MonopolyException $e) {
+        echo "  construction impossible : {$e->getMessage()}" . PHP_EOL;
+        break;
+    }
+}
 
-// // Tentative de construction interdite (groupe incomplet)
-// echo PHP_EOL . "Bob tente de construire sur une case isolée :" . PHP_EOL;
-// $vaugirard = $board->getTileAt(new Square(6)); // LIGHT_BLUE
-// $vaugirard->setOwner($bob);
-// try {
-//     $demo->buildHouse($vaugirard);
-//     echo "  (aucune erreur — anormal)" . PHP_EOL;
-// } catch (InvalidPlayerActionException $e) {
-//     echo "  refusé : {$e->getMessage()}" . PHP_EOL;
-// }
+// Tentative de construction interdite (groupe incomplet)
+echo PHP_EOL . "Bob tente de construire sur une case isolée :" . PHP_EOL;
+$vaugirard = $board->getTileAt(new Square(6)); // LIGHT_BLUE
+$vaugirard->setOwner($bob);
+try {
+    $demo->buildHouse($vaugirard);
+    echo "  (aucune erreur — anormal)" . PHP_EOL;
+} catch (InvalidPlayerActionException $e) {
+    echo "  refusé : {$e->getMessage()}" . PHP_EOL;
+}
 
 // ---------------------------------------------------------------------------
-// 3. État final
+// 3. Carte « Sortie de prison gratuite » conservable (points 3-4)
+// ---------------------------------------------------------------------------
+ligne('CARTE SORTIE DE PRISON (conservable)');
+
+$jeu   = new Game(['Alice', 'Bob']);
+$jeu->start();
+$alice = $jeu->getCurrentPlayer();
+
+$carteEtat = fn(Player $p): string =>
+    ($p->isInJail() ? 'EN PRISON' : 'libre') .
+    ', carte : ' . ($p->hasGetOutOfJailCard() ? 'oui' : 'non') .
+    ', position ' . $p->getPosition()->getIndex();
+
+// Alice pioche la carte alors qu'elle est libre -> elle la CONSERVE
+$carte = new Card('Sortie de prison gratuite', CardEffectType::EXIT_JAIL);
+$carte->apply($alice, $jeu);
+echo "Alice pioche la carte : {$carteEtat($alice)}" . PHP_EOL;
+echo "  -> conservée, pas de sortie immédiate." . PHP_EOL;
+
+// Plus tard, Alice tombe sur « Allez en prison » : tour terminé, elle garde la carte
+$jeu->getBoard()->findTileByType(TileType::GO_TO_JAIL)->landOn($alice, $jeu);
+echo "Alice va en prison : {$carteEtat($alice)}" . PHP_EOL;
+
+// À un tour suivant, Alice choisit de poser sa carte
+$jeu->useJailCard();
+echo "Alice utilise sa carte : {$carteEtat($alice)}" . PHP_EOL;
+echo "  -> sortie gratuite, carte consommée, tour normal joué." . PHP_EOL;
+
+// ---------------------------------------------------------------------------
+// 4. État final
 // ---------------------------------------------------------------------------
 ligne('ÉTAT FINAL (partie principale)');
 foreach ($game->getPlayers() as $player) {

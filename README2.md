@@ -97,6 +97,7 @@ Si `Dice::rollTwo()` retourne deux valeurs identiques (un double), le joueur rej
 
 Un joueur avec `isInJail() === true` ne peut pas jouer normalement. À son tour, il doit choisir (ou vous décidez d'une règle automatique simple) entre :
 
+- **utiliser une carte « Sortie de prison gratuite »** s'il en détient une (voir point 4) : sortie immédiate, sans payer ni tour supplémentaire ;
 - payer une caution (exemple : 50) pour sortir immédiatement et jouer normalement ce tour ;
 - lancer les dés : s'il fait un double, il sort de prison gratuitement et avance de ce double ; sinon, il reste en prison pour ce tour (tour "perdu") ;
 - après 3 tours ratés en prison, la sortie devient obligatoire (paiement forcé de la caution).
@@ -105,11 +106,32 @@ Un joueur avec `isInJail() === true` ne peut pas jouer normalement. À son tour,
 
 - Une propriété de comptage des tours passés en prison (sur `Player`, en plus de `inJail`).
 - Une méthode (nom libre, par exemple `Game::playJailedTurn()` ou une branche au début de `playTurn()`) qui gère ce cas spécifique avant la logique normale de déplacement.
+- Utiliser la carte est un **choix**, pas une obligation (un joueur peut vouloir rester en prison). Modélisez ce choix par une **méthode publique dédiée**, sur le modèle de `payToLeaveJail()` : par exemple `Game::useJailCard(): void`, que l'appelant invoque seulement si le joueur décide de poser sa carte. Elle vérifie que le joueur en détient une (`hasGetOutOfJailCard()`), la consomme (`useGetOutOfJailCard()`), le sort de prison (`setInJail(false)`, `resetTurnsInJail()`), puis **joue un tour normal** (`playTurn()`), comme après un paiement de caution.
+- `playJailedTurn()` (le comportement par défaut si le joueur ne fait aucun choix) **ne touche pas à la carte** : il conserve sa logique « tenter un double / rester / sortie forcée après 3 tours ».
+
+> **Moment d'utilisation.** La carte se pose **au début du tour** d'un joueur déjà en prison (via `useJailCard()`), **jamais** au moment où il entre en prison. Entrer en prison (case GoToJail, 3 doubles, ou carte `GO_TO_JAIL`) **termine le tour immédiatement** — aucune carte n'est consommée à cet instant. La carte ne sert qu'à repartir à un tour suivant, si et quand le joueur le décide.
+
+### La carte « Sortie de prison gratuite » conservable
+
+Contrairement à la simplification initiale du point 4, cette carte **ne s'applique pas au moment où on la pioche** : le joueur la **garde en main** jusqu'à ce qu'il soit en prison. En effet, on ne pioche une carte qu'en se déplaçant — donc en n'étant pas en prison ; l'appliquer immédiatement serait donc inutile.
+
+- Sur `Player`, ajoutez un **compteur** de cartes « sortie gratuite » détenues (un joueur peut en cumuler deux : une de Chance, une de Caisse). Par exemple :
+
+```php
+private int $getOutOfJailCards = 0;
+
+public function addGetOutOfJailCard(): void
+public function hasGetOutOfJailCard(): bool
+public function useGetOutOfJailCard(): void   // décrémente, refuse si le compteur est à 0
+```
+
+- **Limite assumée** : dans ce TP, les cartes ne quittent jamais la pioche (elles restent tirables). On ne modélise donc pas le retrait de la carte du deck tant qu'un joueur la détient — le compteur sur `Player` suffit à représenter « je peux sortir gratuitement une fois ».
 
 ### Attendu
 
 - ✅ un joueur en prison ne se déplace pas normalement tant qu'il n'en est pas sorti ;
-- ✅ sortie par double, par paiement, ou forcée après 3 tours ;
+- ✅ sortie par carte conservée, par double, par paiement, ou forcée après 3 tours ;
+- ✅ une carte « Sortie de prison gratuite » piochée est **conservée** puis utilisée plus tard, pas appliquée immédiatement ;
 - ✅ `inJail` repassé à `false` à la sortie.
 
 ---
@@ -158,7 +180,7 @@ case LOSE_MONEY;          // value = montant perdu
 case MOVE_TO;              // value = index de la case cible
 case MOVE_STEPS;           // value = nombre de cases à avancer (peut réutiliser resolveMovement())
 case GO_TO_JAIL;
-case EXIT_JAIL;            // sortie de prison immédiate, sans paiement ni tour supplémentaire
+case EXIT_JAIL;            // carte « Sortie de prison gratuite » CONSERVÉE par le joueur (voir point 3), pas appliquée immédiatement
 case PAY_ALL;              // value = montant à verser à chaque autre joueur
 case RECEIVE_ALL;          // value = montant reçu de chaque autre joueur
 ```

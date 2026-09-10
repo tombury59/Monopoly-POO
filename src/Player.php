@@ -7,6 +7,7 @@ class Player {
     private Square $position;
     private bool $inJail = false;
     private int $turnsInJail = 0;
+    private int $getOutOfJailCards = 0;
 
     public function __construct(string $name, int $startingMoney = 1500){
         $this->name = $name;
@@ -57,6 +58,21 @@ class Player {
 
     public function resetTurnsInJail(): void {
         $this->turnsInJail = 0;
+    }
+
+    public function addGetOutOfJailCard(): void {
+        $this->getOutOfJailCards += 1;
+    }
+
+    public function hasGetOutOfJailCard(): bool {
+        return $this->getOutOfJailCards > 0;
+    }
+
+    public function useGetOutOfJailCard(): void {
+        if($this->getOutOfJailCards <= 0) {
+            throw new InvalidPlayerActionException("Le joueur n'a plus de carte de sortie de prison.");
+        }
+        $this->getOutOfJailCards -= 1;
     }
 
 }

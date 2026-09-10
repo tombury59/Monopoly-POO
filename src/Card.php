@@ -74,8 +74,9 @@ class Card{
     }
 
     private function exitJail(Player $player): void {
-        $player->setInJail(false);
-        $player->resetTurnsInJail();
+        // $player->setInJail(false);
+        // $player->resetTurnsInJail();
+        $player->addGetOutOfJailCard();
     }
     
     private function repairBuildings(Player $player, Game $game): void {
@@ -98,6 +99,4 @@ class Card{
         }
         $player->removeMoney($nbHouse * $this->value + $nbHotels * $this->hotelValue);
     }
-
-
 }

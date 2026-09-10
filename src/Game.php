@@ -86,6 +86,26 @@ class Game {
         $this->playTurn();
     }
 
+    public function useJailCard(): void {
+        $playingPlayer = $this->getCurrentPlayer();
+
+        if(!$playingPlayer->isInJail()){
+            throw new InvalidPlayerActionException("Le joueur n'est pas en prison.");
+        }
+
+        if(!$playingPlayer->hasGetOutOfJailCard()){
+            throw new InvalidPlayerActionException("Le joueur n'a plus de carte de sortie de prison.");
+        }
+
+        $playingPlayer->useGetOutOfJailCard();
+
+        // TODO: notify
+        $playingPlayer->setInJail(false);
+        $playingPlayer->resetTurnsInJail();
+
+        $this->playTurn();
+    }
+
     public function playTurn(): void {
         $playingPlayer = $this->getCurrentPlayer();
         
