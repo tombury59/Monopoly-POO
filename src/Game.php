@@ -7,6 +7,8 @@ class Game {
     private Dice $dice;
     private TileFactory $tileFactory;
 
+    public const JAIL_BAIL = 50;
+
     public function __construct(array $playerNames) {
         foreach($playerNames as $playerName){
             $this->players[] = new Player($playerName);
@@ -28,10 +30,56 @@ class Game {
     public function getCurrentPlayer(): Player {
         return $this->players[$this->currentPlayerIndex];
     }
+    
+    public function playJailedTurn(): void {
+        $playingPlayer=$this->getCurrentPlayer();
 
-    public function playTurn(): void
-    {
+        if($playingPlayer->getTurnsInJail() === 3) {
+            $this->payToLeaveJail();
+
+            return;
+        }
+        else {
+            $dice = $this->dice->rollTwo();
+            if($dice[0] === $dice[1]) {
+                // TODO: notify
+                $playingPlayer->setInJail(false);
+                $playingPlayer->resetTurnsInJail();
+
+                $step = array_sum($dice);
+                $this->resolveMovement($playingPlayer, $step);
+                $this->nextPlayer();
+            }
+            else {
+                $playingPlayer->addTurnsInJail();
+                $this->nextPlayer();
+            }
+        }
+    }
+
+    public function payToLeaveJail(): void {
         $playingPlayer = $this->getCurrentPlayer();
+
+        if(!$playingPlayer->isInJail()){
+            throw new InvalidPlayerActionException("Le joueur n'est pas en prison.");
+        }
+
+        // TODO: notify
+        $playingPlayer->removeMoney(self::JAIL_BAIL);
+        $playingPlayer->setInJail(false);
+        $playingPlayer->resetTurnsInJail();
+
+        $this->playTurn();
+    }
+
+    public function playTurn(): void {
+        $playingPlayer = $this->getCurrentPlayer();
+        
+        if($playingPlayer->isInJail()) {
+            $this->playJailedTurn();
+            return;
+        }
+
         $doublesCount = 0;
 
         do {
@@ -40,7 +88,7 @@ class Game {
 
             $isDouble = $dice[0] === $dice[1];
             $step = array_sum($dice);
-            
+
             if ($isDouble) {
                 $doublesCount++;
                 // TODO: notify
@@ -56,31 +104,35 @@ class Game {
                 break;
             }
 
-            $actualPosition = $playingPlayer->getPosition();
-
-            // player who passes the Go square receive +200, but if he stops on this square:
-            // Go::applyEffect() applies and adds another +200
-            if (($actualPosition->getIndex() + $step) >= $this->board->getBoardSize()) {
-                $playingPlayer->addMoney(200);
-                // TODO: notify
-            }
-
-            $squareToLand = $actualPosition->next($step);
-            $playingPlayer->setPosition($squareToLand);
-            // TODO: notify
-
-            $tile = $this->board->getTileAt($squareToLand);
-            if ($tile === null) {
-                throw new MonopolyException("Aucune case trouvée à la position {$squareToLand->toKey()}.");
-            }
-
-            // TODO: notify
-            $tile->landOn($playingPlayer, $this);
+            $this->resolveMovement($playingPlayer, $step);
 
         } while ($isDouble);
 
         $this->nextPlayer();
         // TODO: notify
+    }
+
+    private function resolveMovement(Player $player, int $step): void {
+        $actualPosition = $player->getPosition();
+
+        // player who passes the Go square receive +200, but if he stops on this square:
+        // Go::applyEffect() applies and adds another +200
+        if (($actualPosition->getIndex() + $step) >= $this->board->getBoardSize()) {
+            $player->addMoney(200);
+            // TODO: notify
+        }
+
+        $squareToLand = $actualPosition->next($step);
+        $player->setPosition($squareToLand);
+        // TODO: notify
+
+        $tile = $this->board->getTileAt($squareToLand);
+        if ($tile === null) {
+            throw new MonopolyException("Aucune case trouvée à la position {$squareToLand->toKey()}.");
+        }
+
+        // TODO: notify
+        $tile->landOn($player, $this);
     }
 
     public function buyCurrentTile(): void {

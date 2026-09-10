@@ -28,21 +28,32 @@ require_once __DIR__ . '/src/Game.php';
 
 $game = new Game(['Alice', 'Bob']);
 $game->start();
-
+ 
 echo $game->getBoard()->render() . PHP_EOL . PHP_EOL;
-
+ 
 for ($i = 0; $i < 30; $i++) {
     $player = $game->getCurrentPlayer();
-
+ 
     try {
-        $game->playTurn();
+        if ($player->isInJail() && random_int(0, 1) === 1) {
+            echo "{$player->getName()} décide de payer la caution pour sortir de prison." . PHP_EOL;
+            $game->payToLeaveJail();
+        } else {
+            $game->playTurn();
+        }
+ 
         $status = $player->isInJail() ? ' [EN PRISON]' : '';
         echo "{$player->getName()} -> case {$player->getPosition()->getIndex()}, argent : {$player->getMoney()}{$status}" . PHP_EOL;
+ 
+        if (!$player->isInJail()) {
+            $game->buyCurrentTile();
+            echo "{$player->getName()} a acheté la case courante." . PHP_EOL;
+        }
     } catch (MonopolyException $e) {
         echo "Erreur pour {$player->getName()} : {$e->getMessage()}" . PHP_EOL;
     }
 }
-
+ 
 echo PHP_EOL . "État final des joueurs :" . PHP_EOL;
 foreach ($game->getPlayers() as $player) {
     $status = $player->isInJail() ? ' [EN PRISON]' : '';

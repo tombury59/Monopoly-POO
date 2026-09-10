@@ -6,6 +6,7 @@ class Player {
     private int $money;
     private Square $position;
     private bool $inJail = false;
+    private int $turnsInJail = 0;
 
     public function __construct(string $name, int $startingMoney = 1500){
         $this->name = $name;
@@ -44,6 +45,18 @@ class Player {
 
     public function setInJail(bool $inJail): void {
         $this->inJail = $inJail;
+    }
+
+    public function getTurnsInJail(): int {
+        return $this->turnsInJail;
+    }
+
+    public function addTurnsInJail(): void {
+        $this->turnsInJail += 1;
+    }
+
+    public function resetTurnsInJail(): void {
+        $this->turnsInJail = 0;
     }
 
 }
