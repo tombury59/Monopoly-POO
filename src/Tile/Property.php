@@ -44,7 +44,7 @@ class Property extends Tile {
 
     protected function applyEffect(Player $player, Game $game): void {
         if($this->isOwned() && $this->getOwner() !== $player){
-            $player->removeMoney($this->getRent()); 
+            $player->removeMoney($this->getRent());
             $this->getOwner()->addMoney($this->getRent());
             // TODO: notify
         }

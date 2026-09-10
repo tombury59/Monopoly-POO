@@ -30,6 +30,6 @@ class Square{
     }
 
     public function next(int $steps): Square {
-        return new Square(($this->getIndex()+$steps) % self::BOARD_SIZE);
+        return new Square((($this->getIndex() + $steps) % self::BOARD_SIZE + self::BOARD_SIZE) % self::BOARD_SIZE);
     }
 }

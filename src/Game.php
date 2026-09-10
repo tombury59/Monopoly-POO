@@ -30,31 +30,44 @@ class Game {
     public function getCurrentPlayer(): Player {
         return $this->players[$this->currentPlayerIndex];
     }
-    
-    public function playJailedTurn(): void {
-        $playingPlayer=$this->getCurrentPlayer();
 
-        if($playingPlayer->getTurnsInJail() === 3) {
-            $this->payToLeaveJail();
+    public function playJailedTurn(): void {
+        $playingPlayer = $this->getCurrentPlayer();
+
+        $dice = $this->dice->rollTwo();
+
+        if ($dice[0] === $dice[1]) {
+            // TODO: notify
+            $playingPlayer->setInJail(false);
+            $playingPlayer->resetTurnsInJail();
+
+            try {
+                $this->resolveMovement($playingPlayer, array_sum($dice));
+            } finally {
+                $this->nextPlayer();
+            }
 
             return;
         }
-        else {
-            $dice = $this->dice->rollTwo();
-            if($dice[0] === $dice[1]) {
-                // TODO: notify
+
+        $playingPlayer->addTurnsInJail();
+
+        if ($playingPlayer->getTurnsInJail() >= 3) {
+            try {
+                // TODO: faillite si le joueur ne peut pas payer la caution
+                $playingPlayer->removeMoney(self::JAIL_BAIL);
                 $playingPlayer->setInJail(false);
                 $playingPlayer->resetTurnsInJail();
+                $this->resolveMovement($playingPlayer, array_sum($dice));
+            } finally {
+                $this->nextPlayer();
+            }
 
-                $step = array_sum($dice);
-                $this->resolveMovement($playingPlayer, $step);
-                $this->nextPlayer();
-            }
-            else {
-                $playingPlayer->addTurnsInJail();
-                $this->nextPlayer();
-            }
+            return;
         }
+
+        // TODO: notify
+        $this->nextPlayer();
     }
 
     public function payToLeaveJail(): void {
@@ -65,6 +78,7 @@ class Game {
         }
 
         // TODO: notify
+        // TODO: faillite si le joueur ne peut pas payer la caution
         $playingPlayer->removeMoney(self::JAIL_BAIL);
         $playingPlayer->setInJail(false);
         $playingPlayer->resetTurnsInJail();
@@ -80,36 +94,42 @@ class Game {
             return;
         }
 
-        $doublesCount = 0;
+        try {
+            $doublesCount = 0;
 
-        do {
-            $dice = $this->dice->rollTwo();
-            // TODO: notify
-
-            $isDouble = $dice[0] === $dice[1];
-            $step = array_sum($dice);
-
-            if ($isDouble) {
-                $doublesCount++;
+            do {
+                $dice = $this->dice->rollTwo();
                 // TODO: notify
-            }
 
-            if ($doublesCount === 3) {
-                $goToJailTile = $this->board->findTileByType(TileType::GO_TO_JAIL);
-                if ($goToJailTile === null) {
-                    throw new MonopolyException("Aucune case GoToJail trouvée sur le plateau.");
+                $isDouble = $dice[0] === $dice[1];
+                $step = array_sum($dice);
+
+                if ($isDouble) {
+                    $doublesCount++;
+                    // TODO: notify
                 }
-                $goToJailTile->landOn($playingPlayer, $this);
-                // TODO: notify
-                break;
-            }
 
-            $this->resolveMovement($playingPlayer, $step);
+                if ($doublesCount === 3) {
+                    $goToJailTile = $this->board->findTileByType(TileType::GO_TO_JAIL);
+                    if ($goToJailTile === null) {
+                        throw new MonopolyException("Aucune case GoToJail trouvée sur le plateau.");
+                    }
+                    $goToJailTile->landOn($playingPlayer, $this);
+                    // TODO: notify
+                    break;
+                }
 
-        } while ($isDouble);
+                $this->resolveMovement($playingPlayer, $step);
 
-        $this->nextPlayer();
-        // TODO: notify
+                if ($playingPlayer->isInJail()) {
+                    break;
+                }
+
+            } while ($isDouble);
+        } finally {
+            $this->nextPlayer();
+            // TODO: notify
+        }
     }
 
     private function resolveMovement(Player $player, int $step): void {
@@ -135,20 +155,18 @@ class Game {
         $tile->landOn($player, $this);
     }
 
-    public function buyCurrentTile(): void {
-        $playingPlayer = $this->getCurrentPlayer();
-        
-        $tile=$this->board->getTileAt($playingPlayer->getPosition());
+    public function buyCurrentTile(Player $player): void {
+        $tile = $this->board->getTileAt($player->getPosition());
 
-        if(!$tile->isOwnable()) {
+        if($tile === null || !$tile->isOwnable()) {
             throw new TileNotOwnableException("Cette case n'est pas achetable.");
         }
         if($tile instanceof Property || $tile instanceof Station || $tile instanceof Company) {
             if($tile->isOwned()) {
                 throw new AlreadyOwnedException("La case {$tile->getName()} est déja détenu par un joueur.");
             }
-            $playingPlayer->removeMoney($tile->getPrice());
-            $tile->setOwner($playingPlayer);
+            $player->removeMoney($tile->getPrice());
+            $tile->setOwner($player);
             // TODO: notify
         }
     }

@@ -33,7 +33,7 @@ class Company extends Tile {
 
     protected function applyEffect(Player $player, Game $game): void {
         if($this->isOwned() && $this->getOwner() !== $player){
-            $player->removeMoney($this->getPrice()); 
+            $player->removeMoney($this->getPrice());
             $this->getOwner()->addMoney($this->getPrice());
             // TODO: notify
         }

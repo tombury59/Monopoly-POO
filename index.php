@@ -3,6 +3,7 @@
 require_once __DIR__ . '/src/Contract/Renderable.php';
 require_once __DIR__ . '/src/Enum/TileType.php';
 require_once __DIR__ . '/src/Enum/ColorGroup.php';
+require_once __DIR__ . '/src/Enum/CardEffectType.php';
 require_once __DIR__ . '/src/Square.php';
 require_once __DIR__ . '/src/Dice.php';
 require_once __DIR__ . '/src/Exception/MonopolyException.php';
@@ -11,6 +12,8 @@ require_once __DIR__ . '/src/Exception/TileNotOwnableException.php';
 require_once __DIR__ . '/src/Exception/AlreadyOwnedException.php';
 require_once __DIR__ . '/src/Exception/InvalidPlayerActionException.php';
 require_once __DIR__ . '/src/Player.php';
+require_once __DIR__ . '/src/Board.php';
+require_once __DIR__ . '/src/Card.php';
 require_once __DIR__ . '/src/Tile/Tile.php';
 require_once __DIR__ . '/src/Tile/Go.php';
 require_once __DIR__ . '/src/Tile/Jail.php';
@@ -22,18 +25,19 @@ require_once __DIR__ . '/src/Tile/Tax.php';
 require_once __DIR__ . '/src/Tile/Station.php';
 require_once __DIR__ . '/src/Tile/Company.php';
 require_once __DIR__ . '/src/Tile/Property.php';
-require_once __DIR__ . '/src/Board.php';
 require_once __DIR__ . '/src/Factory/TileFactory.php';
 require_once __DIR__ . '/src/Game.php';
 
 $game = new Game(['Alice', 'Bob']);
 $game->start();
- 
+
 echo $game->getBoard()->render() . PHP_EOL . PHP_EOL;
- 
+
 for ($i = 0; $i < 30; $i++) {
     $player = $game->getCurrentPlayer();
- 
+    $moneyBefore = $player->getMoney();
+    $positionBefore = $player->getPosition()->getIndex();
+
     try {
         if ($player->isInJail() && random_int(0, 1) === 1) {
             echo "{$player->getName()} décide de payer la caution pour sortir de prison." . PHP_EOL;
@@ -41,19 +45,26 @@ for ($i = 0; $i < 30; $i++) {
         } else {
             $game->playTurn();
         }
- 
+
         $status = $player->isInJail() ? ' [EN PRISON]' : '';
-        echo "{$player->getName()} -> case {$player->getPosition()->getIndex()}, argent : {$player->getMoney()}{$status}" . PHP_EOL;
- 
+        $currentTile = $game->getBoard()->getTileAt($player->getPosition());
+        $tileLabel = $currentTile !== null ? " ({$currentTile->getName()})" : '';
+
+        echo "{$player->getName()} -> case {$player->getPosition()->getIndex()}{$tileLabel}, argent : {$player->getMoney()}{$status}" . PHP_EOL;
+
+        if ($player->getMoney() !== $moneyBefore && $player->getPosition()->getIndex() === $positionBefore) {
+            echo "  (note : argent modifié sans déplacement - probable effet de carte reçu indirectement)" . PHP_EOL;
+        }
+
         if (!$player->isInJail()) {
-            $game->buyCurrentTile();
+            $game->buyCurrentTile($player);
             echo "{$player->getName()} a acheté la case courante." . PHP_EOL;
         }
     } catch (MonopolyException $e) {
         echo "Erreur pour {$player->getName()} : {$e->getMessage()}" . PHP_EOL;
     }
 }
- 
+
 echo PHP_EOL . "État final des joueurs :" . PHP_EOL;
 foreach ($game->getPlayers() as $player) {
     $status = $player->isInJail() ? ' [EN PRISON]' : '';
