@@ -19,7 +19,7 @@ class Card{
         match ($this->effectType) {
             CardEffectType::GAIN_MONEY => $player->addMoney($this->value),
             CardEffectType::LOSE_MONEY => $player->removeMoney($this->value),
-            CardEffectType::MOVE_TO => $this->moveTo($player, $game, new Square($this->value)),
+            CardEffectType::MOVE_TO => $this->moveTo($player, $game, $this->value),
             CardEffectType::MOVE_STEPS => $this->moveSteps($player,$game),
             CardEffectType::GO_TO_JAIL =>$this->goToJail($player,$game),
             CardEffectType::EXIT_JAIL => $this->exitJail($player),
@@ -28,33 +28,18 @@ class Card{
         };
     }
 
-    private function moveTo(Player $player, Game $game, Square $target): void {
-        if ($target->getIndex() < $player->getPosition()->getIndex()) {
-            $player->addMoney(200);
-            // TODO: notify
-        }
+    private function moveTo(Player $player, Game $game, int $target): void {
+        $c    = $player->getPosition()->getIndex();
+        $size = $game->getBoard()->getBoardSize();
 
-        $this->resolveLanding($player, $game, $target);
+        $steps = ($target-$c+$size) % $size;
+
+        $game->resolveMovement($player, $steps);
     }
 
     private function moveSteps(Player $player,Game $game): void {
-        $from = $player->getPosition()->getIndex();
+        $game->resolveMovement($player, $this->value);
 
-        if ($this->value > 0 && $from + $this->value >= $game->getBoard()->getBoardSize()) {
-            $player->addMoney(200);
-            // TODO: notify
-        }
-
-        $this->resolveLanding($player, $game, $player->getPosition()->next($this->value));
-    }
-
-    private function resolveLanding(Player $player, Game $game, Square $target): void {
-        $player->setPosition($target);
-
-        $tile = $game->getBoard()->getTileAt($target);
-        if ($tile !== null) {
-            $tile->landOn($player, $game);
-        }
     }
 
     private function goToJail(Player $player,Game $game): void {

@@ -132,7 +132,7 @@ class Game {
         }
     }
 
-    private function resolveMovement(Player $player, int $step): void {
+    public function resolveMovement(Player $player, int $step): void {
         $actualPosition = $player->getPosition();
 
         // player who passes the Go square receive +200, but if he stops on this square:

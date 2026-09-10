@@ -150,26 +150,57 @@ Fichier :
 src/Enum/CardEffectType.php
 ```
 
-Valeurs proposées (libre à vous d'en ajouter) :
+Valeurs à couvrir dès ce point 4 (libre à vous d'en ajouter d'autres qui ne dépendent de rien d'autre) :
 
 ```php
-case GAIN_MONEY;
-case LOSE_MONEY;
-case MOVE_TO;      // value = index de la case cible
+case GAIN_MONEY;          // value = montant gagné
+case LOSE_MONEY;          // value = montant perdu
+case MOVE_TO;              // value = index de la case cible
+case MOVE_STEPS;           // value = nombre de cases à avancer (peut réutiliser resolveMovement())
 case GO_TO_JAIL;
+case EXIT_JAIL;            // sortie de prison immédiate, sans paiement ni tour supplémentaire
+case PAY_ALL;              // value = montant à verser à chaque autre joueur
+case RECEIVE_ALL;          // value = montant reçu de chaque autre joueur
 ```
 
 `Card::apply()` doit utiliser un `match` sur `$this->effectType` pour appliquer le bon effet — même principe de Template Method/Strategy que dans `Tile`.
 
-### Ce qu'il faut faire dans `Chance` et `CommunityChest`
+> **Deux cas reportés après le point 5.** `REPAIR_BUILDINGS` (payer un montant par maison/hôtel possédé) dépend d'une notion de niveau de construction sur `Property` qui n'existe pas encore à ce stade. `NEAREST_UTILITY_OR_RAILROAD` (avancer jusqu'à la gare ou la compagnie la plus proche) demande une recherche "case la plus proche dans le sens de la marche", plus complexe que `Board::findTileByType()` qui retourne simplement la première case trouvée d'un type donné, sans notion de distance. Vous pouvez déjà les ajouter à l'enum dès maintenant si vous le souhaitez (un enum PHP peut évoluer sans rien casser), mais laissez un `// TODO` dans `Card::apply()` pour ces deux cas plutôt que de les implémenter tout de suite — voir la note à la fin du point 5.
 
-- Une liste de `Card` (propriété privée, remplie dans le constructeur ou via une méthode dédiée).
-- `applyEffect()` doit tirer une carte au hasard dans la liste (`array_rand()` ou équivalent) et appeler `Card::apply($player, $game)`.
+### Ce qui est imposé dans `Chance` et `CommunityChest`
+
+Contrairement au reste du TP2, cette partie redevient aussi directive que le TP principal — mêmes règles : respectez exactement le nom de la propriété et la signature.
+
+Propriété imposée, dans chacune des deux classes :
+
+```php
+private array $cards = [];
+```
+
+Méthode imposée, dans chacune des deux classes :
+
+```php
+private function buildDeck(): array
+```
+
+`buildDeck()` doit construire et retourner le tableau des `Card` propres à cette case (les cartes Chance sont différentes des cartes Caisse de Communauté — chaque classe a son propre contenu). Elle est appelée depuis le constructeur, qui assigne son résultat à `$this->cards` :
+
+```php
+public function __construct(string $name, Square $position)
+{
+    parent::__construct($name, $position);
+    $this->type = TileType::CHANCE; // ou COMMUNITY_CHEST selon la classe
+    $this->cards = $this->buildDeck();
+}
+```
+
+`applyEffect()` (déjà imposée par le TP principal) doit tirer une carte au hasard dans `$this->cards` (`array_rand()` ou équivalent) et appeler `Card::apply($player, $game)` dessus — aucune autre logique ne doit s'y trouver, tout le détail de l'effet appartient à `Card`.
 
 ### Attendu
 
 - ✅ au moins 4 cartes différentes par type de case, avec des effets variés ;
-- ✅ le tirage est aléatoire à chaque atterrissage.
+- ✅ le tirage est aléatoire à chaque atterrissage ;
+- ✅ `$cards` et `buildDeck()` respectent exactement le nom et la signature ci-dessus.
 
 ---
 
@@ -190,9 +221,47 @@ Un joueur propriétaire de **toutes** les propriétés d'un même `ColorGroup` p
 - ✅ impossible de construire sans posséder tout le groupe ;
 - ✅ le loyer appliqué dans `Property::applyEffect()` reflète le niveau de construction.
 
+### À reprendre maintenant que ce point est fait
+
+Retournez dans `Card::apply()` (point 4) et complétez le cas `REPAIR_BUILDINGS` : il doit parcourir les propriétés du joueur (via `Game::getPlayers()`/une méthode dédiée si vous en créez une, ou en itérant sur `Board::getTiles()` en filtrant celles dont `getOwner() === $player`), et débiter un montant par maison et un montant (généralement plus élevé) par hôtel, selon le niveau de construction que vous venez d'ajouter à `Property`.
+
+`NEAREST_UTILITY_OR_RAILROAD` reste optionnel — ce n'est pas dans les attendus stricts du TP2, à traiter seulement si vous voulez aller plus loin.
+
 ---
 
-## 6. Hypothèques
+## 6. Loyers variables pour Station et Company
+
+### Constat
+
+Le TP principal n'imposait qu'un `price` sur `Station`/`Company`, sans notion de loyer séparée — `applyEffect()` fait donc actuellement payer le **prix d'achat** en guise de loyer, une simplification assumée du socle de départ, mais différente des vraies règles du Monopoly : le loyer d'une gare ou d'une compagnie dépend du **nombre de cases du même type possédées par le même propriétaire**, pas d'un montant fixe.
+
+### Règle réelle
+
+- **Gares** : le loyer double à chaque gare supplémentaire possédée par le même propriétaire (25 avec 1 gare, 50 avec 2, 100 avec 3, 200 avec les 4).
+- **Compagnies** : le loyer dépend d'un lancer de dés — 4× le total des dés si le propriétaire possède une seule compagnie, 10× s'il possède les deux.
+
+### Ce qu'il faut faire
+
+- Une méthode sur `Board` pour compter, pour un joueur donné et un `TileType` donné, le nombre de cases de ce type qu'il possède — par exemple :
+
+```php
+public function countOwnedByType(Player $player, TileType $type): int
+```
+
+Elle doit parcourir `$this->tiles`, ne considérer que celles dont le type correspond, et dont `getOwner() === $player` (attention : seules `Property`, `Station`, `Company` ont un `getOwner()` — un `instanceof` ou une interface commune reste nécessaire, comme déjà fait dans `Game::buyCurrentTile()`).
+
+- Dans `Station::applyEffect()`, remplacer le loyer fixe par un calcul basé sur `$game->getBoard()->countOwnedByType($this->getOwner(), TileType::STATION)`.
+- Dans `Company::applyEffect()`, le calcul a besoin du dernier lancer de dés — ce qui pose une vraie question de conception : `Company` n'a aucun moyen de connaître le résultat du lancer qui a mené le joueur jusqu'à elle, puisque `applyEffect()` ne reçoit que `$player` et `$game`. Réfléchissez à comment faire remonter cette information (par exemple, `Game` pourrait exposer une méthode `getLastDiceTotal(): int`, mise à jour à chaque lancer dans `playTurn()`), plutôt que d'improviser un nouveau lancer de dés dans `Company` elle-même — ce qui tricherait par rapport à la vraie règle.
+
+### Attendu
+
+- ✅ le loyer d'une gare change selon le nombre de gares possédées par le même propriétaire ;
+- ✅ le loyer d'une compagnie se base sur le dernier lancer de dés réel du joueur, pas un nouveau lancer improvisé ;
+- ✅ aucune donnée dupliquée entre `Board`/`Game`/`Station`/`Company` — chaque classe consulte les autres plutôt que de recalculer ce qu'elle ne devrait pas connaître.
+
+---
+
+## 7. Hypothèques
 
 ### Règle
 
@@ -210,7 +279,7 @@ Un propriétaire peut hypothéquer une case qu'il possède (`Property`, `Station
 
 ---
 
-## 7. Faillite et fin de partie
+## 8. Faillite et fin de partie
 
 ### Règle
 
@@ -226,6 +295,154 @@ Si un joueur ne peut pas payer une dette (`InsufficientFundsException` levée qu
 
 - ✅ un joueur en faillite est retiré proprement (pas juste ignoré) ;
 - ✅ la partie sait se terminer et désigner un gagnant.
+
+### À reprendre maintenant que ce point est fait
+
+Retournez dans `Card::payOrReceiveAll()` (point 4) : un `// TODO` y a été laissé pour le cas où un joueur ne peut pas payer sa part lors d'un `PAY_ALL`/`RECEIVE_ALL`. Deux sous-cas à distinguer :
+
+- le joueur qui a pioché la carte (`PAY_ALL`) n'a pas assez pour payer tout le monde → il fait faillite, avec la même mécanique que n'importe quelle autre dette impayée ;
+- un des **autres** joueurs (`RECEIVE_ALL`, ou un receveur dans `PAY_ALL`) n'a pas assez → c'est lui qui fait faillite individuellement, sans empêcher le transfert de continuer pour les autres joueurs de la boucle.
+
+Le plus propre est d'attraper `InsufficientFundsException` **à l'intérieur** de la boucle `foreach` de `payOrReceiveAll()`, joueur par joueur, plutôt que de laisser une seule exception interrompre tout le transfert — puis de déclencher la faillite du joueur concerné via la méthode que vous venez d'écrire pour ce point 8.
+
+---
+
+## 9. Notifications d'événements (Observer)
+
+### Problème à résoudre
+
+Aujourd'hui, `Game::playTurn()` (et bientôt `buyCurrentTile()`, la prison, les cartes...) modifie l'état du jeu silencieusement : rien ne permet à un appelant extérieur (typiquement un futur front) de savoir *ce qui s'est passé* pendant le tour — un passage par la case Départ, un loyer payé, une carte tirée, une faillite... Comparer l'état avant/après ne dit pas *pourquoi* les choses ont changé.
+
+### Ce qui est imposé
+
+Le pattern à mettre en place est un **Observer** : `Game` (le *sujet*) notifie une liste d'observateurs à chaque événement notable, sans savoir ce qu'ils en font (affichage console, futur front, logs, tests...).
+
+Fichier :
+
+```
+src/Contract/GameObserver.php
+```
+
+Méthode imposée
+
+```php
+public function onEvent(GameEvent $event): void;
+```
+
+Fichier :
+
+```
+src/GameEvent.php
+```
+
+Propriétés et méthode imposées
+
+```php
+private string $type;
+private string $message;
+private array $context;
+
+public function __construct(string $type, string $message, array $context = [])
+public function getType(): string
+public function getMessage(): string
+public function getContext(): array
+```
+
+`$type` sert à catégoriser l'événement sans que l'observateur ait à parser le message (exemples de valeurs libres : `"passed_go"`, `"rent_paid"`, `"card_drawn"`, `"bankruptcy"`). `$context` porte les données structurées utiles à un affichage riche (montant, nom de joueur, nom de case...), sans obliger à tout reconstruire depuis le texte.
+
+### Liste des événements à couvrir
+
+Établissez cette liste **maintenant**, avant même d'écrire `notify()` — elle vous sert de checklist pendant que vous codez chaque règle du TP, pour ne pas avoir à ratisser tout le code plus tard en cherchant ce qui mériterait une notification. Chaque type ci-dessous est une suggestion de valeur pour `GameEvent::$type` ; le contenu de `$context` est indicatif, à ajuster selon vos besoins réels.
+
+**Déplacement et plateau**
+- `dice_rolled` — les dés ont été lancés (`context: valeurs des deux dés, total`)
+- `player_moved` — un joueur a changé de position (`context: ancienne position, nouvelle position`)
+- `passed_go` — le joueur passe devant ou s'arrête sur la case Départ (`context: montant reçu`)
+- `landed_on_tile` — le joueur atterrit sur une case (`context: nom et type de la case`)
+
+**Argent**
+- `rent_paid` — un loyer a été payé (`context: montant, joueur payeur, propriétaire`)
+- `tax_paid` — une taxe a été payée (`context: montant`)
+- `money_gained` — gain d'argent générique (carte, bonus...) (`context: montant, raison`)
+- `money_lost` — perte d'argent générique (`context: montant, raison`)
+
+**Propriétés**
+- `tile_purchased` — un joueur achète une case (`context: nom de la case, prix, acheteur`)
+- `house_built` — une maison est construite (`context: case, nouveau niveau`)
+- `hotel_built` — un hôtel est construit (`context: case`)
+- `tile_mortgaged` — une case est hypothéquée (`context: case, montant reçu`)
+- `tile_unmortgaged` — une case est dé-hypothéquée (`context: case, montant remboursé`)
+
+**Dés et tours spéciaux**
+- `double_rolled` — un double a été fait, le joueur rejoue (`context: valeur du double`)
+- `three_doubles` — 3 doubles d'affilée, envoi direct en prison (`context: aucun ou joueur concerné`)
+- `turn_ended` — le tour du joueur courant se termine, passage au suivant (`context: joueur suivant`)
+
+**Prison**
+- `sent_to_jail` — un joueur est envoyé en prison (`context: raison — case GoToJail, 3 doubles...`)
+- `jail_turn_skipped` — le joueur reste en prison ce tour (`context: nombre de tours déjà passés`)
+- `jail_paid` — le joueur paie la caution pour sortir (`context: montant`)
+- `jail_escaped_by_double` — le joueur sort de prison grâce à un double (`context: aucun`)
+- `jail_forced_release` — sortie forcée après 3 tours (`context: montant payé`)
+
+**Cartes**
+- `card_drawn` — une carte Chance/Caisse de Communauté est tirée (`context: description de la carte, type de pioche`)
+
+**Fin de partie**
+- `player_bankrupt` — un joueur est en faillite et retiré de la partie (`context: joueur, créancier éventuel`)
+- `game_over` — la partie se termine (`context: joueur vainqueur`)
+
+Vous n'êtes pas obligé de tout implémenter d'un coup — mais en ayant cette liste sous les yeux dès maintenant, vous saurez, à chaque règle que vous codez dans les sections 1 à 7, où il faudra brancher un `notify()` plus tard, et vous pourrez même laisser un `// TODO: notify <type>` en attendant d'avoir écrit l'Observer.
+
+### Modifications sur Game
+
+```php
+private array $observers = [];
+
+public function addObserver(GameObserver $observer): void
+public function removeObserver(GameObserver $observer): void
+private function notify(GameEvent $event): void
+```
+
+`notify()` doit simplement parcourir `$this->observers` et appeler `onEvent()` sur chacun. C'est la **seule** méthode de `Game` qui doit connaître ce détail — le reste du code de `Game` (dans `playTurn()`, `buyCurrentTile()`, etc.) se contente d'appeler `$this->notify(new GameEvent(...))` aux endroits pertinents, sans jamais boucler sur `$this->observers` lui-même.
+
+### Un exemple d'observateur simple pour commencer
+
+Avant de brancher un vrai front, un observateur console suffit à valider que le mécanisme fonctionne :
+
+```
+src/Observer/ConsoleGameObserver.php
+```
+
+```php
+class ConsoleGameObserver implements GameObserver
+{
+    public function onEvent(GameEvent $event): void
+    {
+        echo "[{$event->getType()}] {$event->getMessage()}" . PHP_EOL;
+    }
+}
+```
+
+Dans `index.php` :
+
+```php
+$game->addObserver(new ConsoleGameObserver());
+```
+
+### Où placer les `notify()` dans le code existant
+
+Reprenez chacune des règles déjà codées (passage par Départ, loyer payé, achat, carte tirée, prison, faillite...) et ajoutez un appel à `$this->notify(...)` juste après l'action réelle — jamais à la place. L'Observer ne doit **jamais** porter de logique métier lui-même (pas de calcul d'argent, pas de décision de déplacement) : il ne fait qu'informer, après coup, que quelque chose s'est produit.
+
+### Attendu
+
+- ✅ `Game` ne connaît pas le détail de ce que font ses observateurs (aucun `if` sur leur type dans `notify()`) ;
+- ✅ au moins les événements suivants sont notifiés : déplacement, passage par Départ, loyer payé, achat de case, faillite ;
+- ✅ un `ConsoleGameObserver` fonctionnel, prêt à être remplacé ou complété plus tard par un vrai observateur front sans toucher à `Game`.
+
+### Pourquoi ce pattern seulement maintenant
+
+Contrairement à Factory/Template Method/Strategy (nécessaires dès le socle), l'Observer n'a de sens qu'une fois qu'il y a plusieurs règles métier réellement en place à notifier — le mettre en place trop tôt aurait ajouté de la complexité sans bénéfice visible. C'est aussi la porte d'entrée naturelle vers un vrai projet : le jour où vous branchez un front (web, CLI interactif, API), il vous suffira d'écrire un nouvel observateur, sans toucher au moteur de jeu.
 
 ---
 
@@ -250,4 +467,5 @@ Bonus TP2
 ✅ / ❌ Hypothèques
 ✅ / ❌ Faillite
 ✅ / ❌ Fin de partie et désignation d'un vainqueur
+✅ / ❌ Notifications d'événements (Observer) + ConsoleGameObserver
 ```
