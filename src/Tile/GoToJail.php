@@ -8,8 +8,14 @@ class GoToJail extends Tile {
     }
 
     protected function applyEffect(Player $player, Game $game): void {
+        $jailTile = $game->getBoard()->findTileByType(TileType::JAIL);
+
+        if ($jailTile === null) {
+            throw new MonopolyException("Aucune case Jail trouvée sur le plateau.");
+        }
+
         $player->setInJail(true);
-        $jailSquare = new Square(10);
-        $player->setPosition($jailSquare);
+        $player->setPosition($jailTile->getPosition());
+        // TODO: notify
     }
 }

@@ -10,5 +10,6 @@ class CommunityChest extends Tile {
     protected function applyEffect(Player $player, Game $game): void {
         // TODO gestion des cartes => effet temporaire
         $player->addMoney(200);
+        // TODO: notify
     }
 }

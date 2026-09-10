@@ -32,18 +32,32 @@ class Game {
     public function playTurn(): void {
         // TODO: Gérer le cas d'un double aux dés => rejouer
         $playingPlayer = $this->getCurrentPlayer();
+        // TODO: notify
         $step = array_sum($this->dice->rollTwo());
+        
 
-        $squareToLand = $playingPlayer->getPosition()->next($step);
+        $actualPosition=$playingPlayer->getPosition();
+
+        // player who passes the Go square receive +200, but if he stop on this square:
+        // Go::applyEffect() apply and add a other +200
+        if( ($actualPosition->getIndex()+$step) >= $this->board->getBoardSize() ){
+            // TODO notify
+            $playingPlayer->addMoney(200);
+        }
+
+        $squareToLand = $actualPosition->next($step);
         $playingPlayer->setPosition($squareToLand);
+        // TODO: notify
 
         $tile = $this->board->getTileAt($squareToLand);
         if ($tile === null) {
             throw new MonopolyException("Aucune case trouvée à la position {$squareToLand->toKey()}.");
         }
 
+        // TODO: notify
         $tile->landOn($playingPlayer, $this);
         $this->nextPlayer();
+        // TODO: notify
     }
 
     public function buyCurrentTile(): void {
@@ -60,6 +74,7 @@ class Game {
             }
             $playingPlayer->removeMoney($tile->getPrice());
             $tile->setOwner($playingPlayer);
+            // TODO: notify
         }
     }
 

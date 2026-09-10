@@ -35,6 +35,7 @@ class Station extends Tile {
         if($this->isOwned() && $this->getOwner() !== $player){
             $player->removeMoney($this->getPrice()); 
             $this->getOwner()->addMoney($this->getPrice());
+            // TODO: notify
         }
     }
 }

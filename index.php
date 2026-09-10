@@ -31,7 +31,7 @@ $game->start();
 
 echo $game->getBoard()->render() . PHP_EOL . PHP_EOL;
 
-for ($i = 0; $i < 6; $i++) {
+for ($i = 0; $i < 16; $i++) {
     $player = $game->getCurrentPlayer();
 
     try {

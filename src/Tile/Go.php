@@ -8,7 +8,7 @@ class Go extends Tile {
     }
 
     protected function applyEffect(Player $player, Game $game): void {
-        // TODO gestion de passer devant / s'arreter pile dessus pour un *2
+        // TODO: notify
         $player->addMoney(200);
     }
 }

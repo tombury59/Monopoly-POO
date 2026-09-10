@@ -46,6 +46,7 @@ class Property extends Tile {
         if($this->isOwned() && $this->getOwner() !== $player){
             $player->removeMoney($this->getRent()); 
             $this->getOwner()->addMoney($this->getRent());
+            // TODO: notify
         }
     }
 }

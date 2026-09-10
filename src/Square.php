@@ -2,10 +2,12 @@
 
 class Square{
 
+    public const BOARD_SIZE = 40;
+
     private int $index;
 
     public function __construct(int $index){
-        if($index<0 || $index>39){
+        if($index<0 || $index > self::BOARD_SIZE-1){
             throw new InvalidArgumentException("L'index doit être compris entre 0 et 39, {$index} donné.");
         }
         $this->index = $index;
@@ -28,6 +30,6 @@ class Square{
     }
 
     public function next(int $steps): Square {
-        return new Square(($this->getIndex()+$steps)%40);
+        return new Square(($this->getIndex()+$steps) % self::BOARD_SIZE);
     }
 }

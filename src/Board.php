@@ -28,4 +28,18 @@ class Board {
 
         return $res;
     }
+
+    public function getBoardSize(): int {
+        return Square::BOARD_SIZE;
+    }
+
+    public function findTileByType(TileType $type): ?Tile {
+        foreach ($this->tiles as $tile) {
+            if ($tile->getType() === $type) {
+                return $tile;
+            }
+        }
+
+        return null;
+    }
 }
