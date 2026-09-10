@@ -42,4 +42,17 @@ class Board {
 
         return null;
     }
+
+    public function ownsWholeGroup(Player $player, ColorGroup $group): bool {
+        foreach($this->tiles as $tile){
+            if($tile instanceof Property ){
+                if($tile->getColorGroup() === $group){
+                    if($tile->getOwner() !== $player){
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
 }

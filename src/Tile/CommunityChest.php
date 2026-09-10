@@ -49,7 +49,7 @@ class CommunityChest extends Tile {
             new Card("Vous devez payer les frais d'hôpital : 100$", CardEffectType::LOSE_MONEY, 100),
             new Card("Vous devez payer les frais de scolarité : 50$", CardEffectType::LOSE_MONEY, 50),
             new Card("Recevez 25$ pour services de consultant", CardEffectType::GAIN_MONEY, 25),
-            // new Card("Payez des réparations de voirie : 40$ par maison et 115$ par hôtel.", CardEffectType::REPAIR_BUILDINGS, 0),
+            new Card("Payez des réparations de voirie : 40$ par maison et 115$ par hôtel.", CardEffectType::REPAIR_BUILDINGS, 40,115),
             new Card("Vous avez gagné le second prix de beauté : 10$", CardEffectType::GAIN_MONEY, 10),
             new Card("Vous héritez de 100$", CardEffectType::GAIN_MONEY, 100),
         ];

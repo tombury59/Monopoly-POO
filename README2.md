@@ -206,20 +206,151 @@ public function __construct(string $name, Square $position)
 
 ## 5. Maisons et hôtels
 
+Contrairement au reste du TP2, ce point redevient **aussi directif que le TP principal** : respectez exactement les noms de propriétés et les signatures ci-dessous. La *logique interne* des méthodes reste à votre charge (comme dans le TP1), mais l'interface publique est imposée.
+
 ### Règle
 
-Un joueur propriétaire de **toutes** les propriétés d'un même `ColorGroup` peut construire des maisons (jusqu'à 4), puis un hôtel, sur chacune. Le loyer (`Property::getRent()`) augmente selon le nombre de maisons/hôtel.
+Un joueur propriétaire de **toutes** les propriétés d'un même `ColorGroup` peut construire des maisons (jusqu'à 4), puis un hôtel, sur chacune. Le loyer (`Property::getRent()`) augmente selon le niveau de construction.
 
-### Ce qu'il faut faire
+### Fichiers concernés
 
-- Une propriété sur `Property` pour compter le niveau de construction (0 à 5, où 5 = hôtel), avec un getter/setter.
-- Une grille de loyers par palier (vous pouvez la stocker comme second tableau dans le constructeur de `Property`, ou calculer le loyer avec une formule simple — à vous de choisir, tant que `getRent()` retourne un montant cohérent avec le niveau de construction actuel).
-- Une méthode pour vérifier qu'un joueur possède bien tout le groupe de couleur avant d'autoriser la construction (elle peut vivre dans `Game` ou dans `Board`, à vous de juger le meilleur endroit).
+```
+src/Tile/Property.php   (modifié)
+src/Board.php           (modifié)
+src/Game.php            (modifié)
+```
+
+### 5.1 — `Property` : niveau de construction
+
+Propriété imposée à ajouter :
+
+```php
+private int $buildLevel = 0; // 0 = terrain nu, 1 à 4 = maisons, 5 = hôtel
+```
+
+Méthodes imposées à ajouter :
+
+```php
+public function getBuildLevel(): int
+public function setBuildLevel(int $level): void
+```
+
+Contraintes :
+
+- `setBuildLevel()` doit **valider la borne 0-5** et lever une exception si elle est dépassée (même principe que la validation d'index dans `Square::__construct()`).
+- Vous ne modifiez **ni** la signature du constructeur imposée au TP1, **ni** les autres méthodes existantes de `Property`.
+
+### 5.2 — `Property` : la grille de loyers officielle
+
+On utilise ici les **vraies valeurs** du plateau Monopoly (édition France), pas une formule. Chaque terrain porte une grille de **6 loyers** indexée par le niveau de construction :
+
+```
+rents = [ loyer_base, 1_maison, 2_maisons, 3_maisons, 4_maisons, hôtel ]
+//         index 0      index 1   index 2    index 3    index 4    index 5
+```
+
+Ainsi `getRent()` se réduit à `return $this->rents[$this->buildLevel]`. La colonne « monopole nu ×2 » n'est **pas** dans cette grille : elle est calculée à part en 5.4.
+
+#### Données imposées (à recopier dans `setupBoard()`)
+
+| Terrain | Groupe | `rents` (6 valeurs) | `housePrice` |
+|---|---|---|---|
+| Boulevard de Belleville | BROWN | `[2, 10, 30, 90, 160, 250]` | 50 |
+| Rue Lecourbe | BROWN | `[4, 20, 60, 180, 320, 450]` | 50 |
+| Rue de Vaugirard | LIGHT_BLUE | `[6, 30, 90, 270, 400, 550]` | 50 |
+| Rue de Courcelles | LIGHT_BLUE | `[6, 30, 90, 270, 400, 550]` | 50 |
+| Avenue de la République | LIGHT_BLUE | `[8, 40, 100, 300, 450, 600]` | 50 |
+| Boulevard de la Villette | PINK | `[10, 50, 150, 450, 625, 750]` | 100 |
+| Avenue de Neuilly | PINK | `[10, 50, 150, 450, 625, 750]` | 100 |
+| Rue de Paradis | PINK | `[12, 60, 180, 500, 700, 900]` | 100 |
+| Avenue Mozart | ORANGE | `[14, 70, 200, 550, 750, 950]` | 100 |
+| Boulevard Saint-Michel | ORANGE | `[14, 70, 200, 550, 750, 950]` | 100 |
+| Place Pigalle | ORANGE | `[16, 80, 220, 600, 800, 1000]` | 100 |
+| Avenue Matignon | RED | `[18, 90, 250, 700, 875, 1050]` | 150 |
+| Boulevard Malesherbes | RED | `[18, 90, 250, 700, 875, 1050]` | 150 |
+| Avenue Henri-Martin | RED | `[20, 100, 300, 750, 925, 1100]` | 150 |
+| Faubourg Saint-Honoré | YELLOW | `[22, 110, 330, 800, 975, 1150]` | 150 |
+| Place de la Bourse | YELLOW | `[22, 110, 330, 800, 975, 1150]` | 150 |
+| Rue La Fayette | YELLOW | `[24, 120, 360, 850, 1025, 1200]` | 150 |
+| Avenue de Breteuil | GREEN | `[26, 130, 390, 900, 1100, 1275]` | 200 |
+| Avenue Foch | GREEN | `[26, 130, 390, 900, 1100, 1275]` | 200 |
+| Boulevard des Capucines | GREEN | `[28, 150, 450, 1000, 1200, 1400]` | 200 |
+| Avenue des Champs-Élysées | DARK_BLUE | `[35, 175, 500, 1100, 1300, 1500]` | 200 |
+| Rue de la Paix | DARK_BLUE | `[50, 200, 600, 1400, 1700, 2000]` | 200 |
+
+> Vérification : `rents[0]` = l'ancien `'rent'` de chaque définition. Une **seule source de vérité** — supprimez l'ancien `'rent'` au profit de `'rents'`.
+
+#### La chaîne de transmission `setupBoard → TileFactory → Property`
+
+Le constructeur `Property::__construct(string $name, Square $position, ColorGroup $colorGroup, int $price, int $rent)` est **imposé** (TP1) : vous ne pouvez ni le renommer ni retirer ses 5 paramètres. Vous **ajoutez** donc, en fin de signature, deux paramètres **optionnels** :
+
+```php
+public function __construct(
+    string $name, Square $position, ColorGroup $colorGroup,
+    int $price, int $rent,
+    array $rents = [], int $housePrice = 0   // ← ajouts, ne cassent aucun appel existant
+)
+```
+
+- Propriétés imposées à ajouter : `private array $rents = [];` et `private int $housePrice = 0;`, avec getters `getRents(): array` et `getHousePrice(): int`.
+- `getRent()` (signature TP1 inchangée) retourne `$this->rents[$this->buildLevel] ?? $this->rent` — le repli sur `$this->rent` évite un plantage si une `Property` est créée sans grille.
+- Dans `setupBoard()` : chaque définition PROPERTY porte `'rents' => [...]` et `'housePrice' => ...` (table ci-dessus) à la place de `'rent' => ...`.
+- Dans `TileFactory::create()`, branche PROPERTY : lisez `$options['rents'] ?? []` et `$options['housePrice'] ?? 0`, et nourrissez le paramètre imposé `$rent` avec `$rents[0] ?? 0`.
+
+Contrainte : `getRent()` ne doit **pas** parcourir le plateau ni connaître les autres cases — elle ne dépend que de `$this->rents` et `$this->buildLevel`.
+
+### 5.3 — `Board` : possession d'un groupe de couleur
+
+Méthode imposée à ajouter dans `Board` :
+
+```php
+public function ownsWholeGroup(Player $player, ColorGroup $group): bool
+```
+
+Rôle et contraintes :
+
+- retourne `true` si **toutes** les `Property` du `ColorGroup` donné ont pour propriétaire `$player` ;
+- doit parcourir `$this->tiles`, ne considérer que les `Property` (attention : seules `Property` ont un `getColorGroup()` — un `instanceof` reste nécessaire, comme dans `Game::buyCurrentTile()`) ;
+- c'est **la seule** méthode qui parcourt le plateau pour cette question : le loyer doublé (5.4) et l'autorisation de construire (5.5) la **réutilisent**, sans réécrire la boucle.
+
+### 5.4 — Loyer doublé du monopole nu
+
+Règle officielle : si un joueur possède **tout** un groupe de couleur mais **sans aucune construction** (`buildLevel === 0` sur chaque terrain), le loyer de base est **doublé**. Dès la première maison, c'est le barème de construction qui s'applique (le doublement ne se cumule **pas** avec les maisons).
+
+- Cette logique vit dans `Property::applyEffect()` (qui reçoit `$game`), **pas** dans `getRent()` : `applyEffect()` interroge `$game->getBoard()->ownsWholeGroup(...)` pour savoir si le doublement s'applique.
+- `applyEffect()` continue de s'appuyer sur `getRent()` pour le montant de base ; il ne fait qu'appliquer (ou non) le facteur 2 par-dessus quand `buildLevel === 0` et que le groupe est complet.
+
+### 5.5 — `Game` : construire
+
+Méthode imposée à ajouter dans `Game` :
+
+```php
+public function buildHouse(Property $property): void
+```
+
+Elle doit, **dans cet ordre** :
+
+1. lever `InvalidPlayerActionException` si le propriétaire de la case ne possède pas tout le groupe (via `Board::ownsWholeGroup()`) ;
+2. lever `InvalidPlayerActionException` si `getBuildLevel()` vaut déjà 5 (plafond hôtel atteint) ;
+3. // TODO (point 7) : refuser si une propriété du groupe est hypothéquée ;
+4. débiter le coût de construction au propriétaire via `Player::removeMoney()`, en utilisant `$property->getHousePrice()` (le prix officiel de la maison, issu de la grille 5.2) ;
+5. incrémenter le niveau via `setBuildLevel(getBuildLevel() + 1)`.
+
+### Ce que vous ne devez pas faire
+
+- pas de parcours du plateau dupliqué : la recherche « groupe complet » n'existe qu'à **un** endroit (`Board::ownsWholeGroup()`) ;
+- pas de gros `if/else` sur le type de case ajouté dans `Game` — le loyer reste géré par le polymorphisme de `Property::applyEffect()` ;
+- pas de règle de **construction uniforme** (répartition équitable), pas d'inventaire de banque : hors périmètre, ce sont des bonus facultatifs.
 
 ### Attendu
 
+- ✅ propriété `buildLevel` et méthodes `getBuildLevel()` / `setBuildLevel()` avec la borne 0-5 validée ;
+- ✅ grille de loyers officielle (`rents` à 6 valeurs) + `housePrice` transmis via `setupBoard → TileFactory → Property`, `getRent()` lisant `rents[buildLevel]` ;
+- ✅ `Board::ownsWholeGroup()` avec la signature exacte ci-dessus ;
+- ✅ `Game::buildHouse()` respectant l'ordre des vérifications ci-dessus ;
 - ✅ impossible de construire sans posséder tout le groupe ;
-- ✅ le loyer appliqué dans `Property::applyEffect()` reflète le niveau de construction.
+- ✅ le loyer appliqué dans `Property::applyEffect()` reflète le niveau de construction ;
+- ✅ un groupe complet sans construction fait payer **le double** du loyer de base ; dès qu'une maison est posée, c'est le barème de construction qui s'applique (pas le double).
 
 ### À reprendre maintenant que ce point est fait
 
@@ -272,10 +403,22 @@ Un propriétaire peut hypothéquer une case qu'il possède (`Property`, `Station
 - Une propriété `mortgaged` (booléen) sur `Property`, `Station`, `Company`, avec getter/setter.
 - `applyEffect()` de ces trois classes doit vérifier ce statut avant d'appliquer un loyer.
 
+### Interaction avec les constructions (point 5)
+
+Règle officielle : on ne peut construire aucune maison/hôtel sur un groupe de couleur si **l'une** des propriétés de ce groupe est hypothéquée. Réciproquement, une propriété hypothéquée ne rapporte aucun loyer (déjà couvert par la propriété `mortgaged` ci-dessus).
+
+Si vous avez déjà écrit la méthode « possède tout le groupe » du point 5 (ainsi que, éventuellement, le loyer doublé du monopole nu), reprenez-la maintenant :
+
+- la méthode qui autorise la construction (`Game::buildHouse()` ou équivalent) doit refuser si **une** des propriétés du groupe est hypothéquée ;
+- le loyer doublé du monopole nu ne doit pas s'appliquer si une propriété du groupe est hypothéquée (le groupe n'est plus « pleinement actif »).
+
+C'est volontairement au point 7, et non au point 5, que cette interaction est traitée : la notion d'hypothèque n'existe pas encore quand vous codez les constructions. Laissez un `// TODO` dans votre méthode de construction au point 5 si vous voulez marquer l'emplacement.
+
 ### Attendu
 
 - ✅ une case hypothéquée ne fait payer aucun loyer ;
-- ✅ possibilité de rembourser pour la réactiver.
+- ✅ possibilité de rembourser pour la réactiver ;
+- ✅ impossible de construire sur un groupe dont au moins une propriété est hypothéquée.
 
 ---
 

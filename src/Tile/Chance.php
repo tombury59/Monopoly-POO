@@ -28,7 +28,6 @@ class Chance extends Tile {
     // 8. Get Out of Jail Free
     // 9. Go Back 3 Spaces
     // 10. Go to Jail. Go directly to Jail, do not pass Go, do not collect $200
-    // TODO: nouveau type
     // 11. Make general repairs on all your property. For each house pay $25. For each hotel pay $100
     // 12. Speeding fine $15
     // 13. Take a trip to Reading Railroad. If you pass Go, collect $200
@@ -44,6 +43,7 @@ class Chance extends Tile {
             new Card("Sortie de prison gratuite", CardEffectType::EXIT_JAIL, 0),
             new Card("Reculez de 3 cases", CardEffectType::MOVE_STEPS, -3),
             new Card("Rendez-vous directement en prison, sans passer par la case Départ", CardEffectType::GO_TO_JAIL, 0),
+            new Card("Vous faites des réparations sur toutes vos propriétés. Pour chaque maison: payez 25$ et pour chaque hotels 100$",CardEffectType::REPAIR_BUILDINGS,25,100),
             new Card("Amende pour excès de vitesse : payez 15$", CardEffectType::LOSE_MONEY, 15),
             new Card("Rendez-vous à la Gare Montparnasse, si vous passez par la case Départ, gagnez 200$", CardEffectType::MOVE_TO, 5),
             new Card("Vous êtes élu président du conseil : payez 50$ à chaque joueur", CardEffectType::PAY_ALL, 50),

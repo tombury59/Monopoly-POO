@@ -4,11 +4,13 @@ class Card{
     private string $description;
     private CardEffectType $effectType;
     private int $value;
+    private int $hotelValue;
 
-    public function __construct(string $description, CardEffectType $effectType, int $value = 0) {
+    public function __construct(string $description, CardEffectType $effectType, int $value = 0,$hotelValue = 0) {
         $this->description = $description;
         $this->effectType = $effectType;
         $this->value = $value;
+        $this->hotelValue= $hotelValue;
     }
 
     public function getDescription(): string {
@@ -25,6 +27,7 @@ class Card{
             CardEffectType::EXIT_JAIL => $this->exitJail($player),
             CardEffectType::PAY_ALL =>$this->payOrReceiveAll($player,$game,true),
             CardEffectType::RECEIVE_ALL =>$this->payOrReceiveAll($player,$game,false),
+            CardEffectType::REPAIR_BUILDINGS =>$this->repairBuildings($player, $game),
         };
     }
 
@@ -74,4 +77,27 @@ class Card{
         $player->setInJail(false);
         $player->resetTurnsInJail();
     }
+    
+    private function repairBuildings(Player $player, Game $game): void {
+        $nbHotels=0;
+        $nbHouse=0;
+
+        $tiles=$game->getBoard()->getTiles();
+        foreach($tiles as $tile){
+            if(($tile instanceof Property) && ($tile->getOwner() === $player)){
+                $level = $tile->getBuildLevel();
+                if($level<0 || $level>5){
+                    throw new MonopolyException("Les batiments n'existent pas.");
+                }
+                if($level >= 1 && $level <= 4){
+                    $nbHouse += $level;
+                } elseif($level === 5){
+                    $nbHotels += 1;
+                }
+            }
+        }
+        $player->removeMoney($nbHouse * $this->value + $nbHotels * $this->hotelValue);
+    }
+
+
 }

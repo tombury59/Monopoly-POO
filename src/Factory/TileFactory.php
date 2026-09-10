@@ -46,7 +46,9 @@ class TileFactory {
                 $position, 
                 $options['colorGroup'] ?? throw new MonopolyException("Le paramètre 'colorGroup' est requis pour créer une Property."), 
                 $options['price'] ?? 0 ,
-                $options['rent'] ?? 0
+                $options['rents'][0] ?? 0,
+                $options['rents'] ?? [],
+                $options['housePrice'] ?? 0
             ),
         };
     }

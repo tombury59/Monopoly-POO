@@ -6,12 +6,18 @@ class Property extends Tile {
     private int $rent;
     private ?Player $owner = null;
 
-    public function __construct(string $name, Square $position, ColorGroup $colorGroup, int $price, int $rent){
+    private int $buildLevel = 0;
+    private array $rents = [];
+    private int $housePrice = 0;
+
+    public function __construct(string $name, Square $position, ColorGroup $colorGroup, int $price, int $rent,array $rents = [], int $housePrice = 0){
         parent::__construct($name,$position);
         $this->type = TileType::PROPERTY;
         $this->colorGroup = $colorGroup;
         $this->price = $price;
         $this->rent = $rent;
+        $this->rents = $rents;
+        $this->housePrice = $housePrice;
     }
 
     public function getColorGroup(): ColorGroup {
@@ -23,7 +29,11 @@ class Property extends Tile {
     }
 
     public function getRent(): int {
-        return $this->rent;
+        return $this->rents[$this->buildLevel] ?? $this->rent;
+    }
+
+    public function getRents(): array {
+        return $this->rents;
     }
 
     public function getOwner(): ?Player {
@@ -44,9 +54,30 @@ class Property extends Tile {
 
     protected function applyEffect(Player $player, Game $game): void {
         if($this->isOwned() && $this->getOwner() !== $player){
-            $player->removeMoney($this->getRent());
-            $this->getOwner()->addMoney($this->getRent());
+
+            $amount = $this->getRent();
+            if($this->buildLevel === 0 && $game->getBoard()->ownsWholeGroup($this->getOwner(), $this->getColorGroup())){
+                $amount *= 2;
+            }
+
+            $player->removeMoney($amount);
+            $this->getOwner()->addMoney($amount);
             // TODO: notify
         }
+    }
+
+    public function getBuildLevel(): int {
+        return $this->buildLevel;
+    }
+
+    public function setBuildLevel(int $level): void {
+        if($level<0 || $level>5){
+            throw new InvalidPropertyLevelException("Ce batiment n'est pas disponible");
+        }
+        $this->buildLevel = $level;
+    }
+
+    public function getHousePrice(): int {
+        return $this->housePrice;
     }
 }

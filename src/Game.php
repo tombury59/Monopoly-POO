@@ -174,45 +174,45 @@ class Game {
     private function setupBoard(): void {
         $definitions = [
             [TileType::GO, 'Départ', 0, []],
-            [TileType::PROPERTY, 'Boulevard de Belleville', 1, ['colorGroup' => ColorGroup::BROWN, 'price' => 60, 'rent' => 2]],
+            [TileType::PROPERTY, 'Boulevard de Belleville', 1, ['colorGroup' => ColorGroup::BROWN, 'price' => 60, 'rents' => [2, 10, 30, 90, 160, 250], 'housePrice' => 50]],
             [TileType::COMMUNITY_CHEST, 'Caisse de Communauté', 2, []],
-            [TileType::PROPERTY, 'Rue Lecourbe', 3, ['colorGroup' => ColorGroup::BROWN, 'price' => 60, 'rent' => 4]],
+            [TileType::PROPERTY, 'Rue Lecourbe', 3, ['colorGroup' => ColorGroup::BROWN, 'price' => 60, 'rents' => [4, 20, 60, 180, 320, 450], 'housePrice' => 50]],
             [TileType::TAX, 'Impôts sur le revenu', 4, ['amount' => 200]],
             [TileType::STATION, 'Gare Montparnasse', 5, ['price' => 200]],
-            [TileType::PROPERTY, 'Rue de Vaugirard', 6, ['colorGroup' => ColorGroup::LIGHT_BLUE, 'price' => 100, 'rent' => 6]],
+            [TileType::PROPERTY, 'Rue de Vaugirard', 6, ['colorGroup' => ColorGroup::LIGHT_BLUE, 'price' => 100, 'rents' => [6, 30, 90, 270, 400, 550], 'housePrice' => 50]],
             [TileType::CHANCE, 'Chance', 7, []],
-            [TileType::PROPERTY, 'Rue de Courcelles', 8, ['colorGroup' => ColorGroup::LIGHT_BLUE, 'price' => 100, 'rent' => 6]],
-            [TileType::PROPERTY, 'Avenue de la République', 9, ['colorGroup' => ColorGroup::LIGHT_BLUE, 'price' => 120, 'rent' => 8]],
+            [TileType::PROPERTY, 'Rue de Courcelles', 8, ['colorGroup' => ColorGroup::LIGHT_BLUE, 'price' => 100, 'rents' => [6, 30, 90, 270, 400, 550], 'housePrice' => 50]],
+            [TileType::PROPERTY, 'Avenue de la République', 9, ['colorGroup' => ColorGroup::LIGHT_BLUE, 'price' => 120, 'rents' => [8, 40, 100, 300, 450, 600], 'housePrice' => 50]],
             [TileType::JAIL, 'Prison / Simple visite', 10, []],
-            [TileType::PROPERTY, 'Boulevard de la Villette', 11, ['colorGroup' => ColorGroup::PINK, 'price' => 140, 'rent' => 10]],
+            [TileType::PROPERTY, 'Boulevard de la Villette', 11, ['colorGroup' => ColorGroup::PINK, 'price' => 140, 'rents' => [10, 50, 150, 450, 625, 750], 'housePrice' => 100]],
             [TileType::COMPANY, "Compagnie de Distribution d'Électricité", 12, ['price' => 150]],
-            [TileType::PROPERTY, 'Avenue de Neuilly', 13, ['colorGroup' => ColorGroup::PINK, 'price' => 140, 'rent' => 10]],
-            [TileType::PROPERTY, 'Rue de Paradis', 14, ['colorGroup' => ColorGroup::PINK, 'price' => 160, 'rent' => 12]],
+            [TileType::PROPERTY, 'Avenue de Neuilly', 13, ['colorGroup' => ColorGroup::PINK, 'price' => 140, 'rents' => [10, 50, 150, 450, 625, 750], 'housePrice' => 100]],
+            [TileType::PROPERTY, 'Rue de Paradis', 14, ['colorGroup' => ColorGroup::PINK, 'price' => 160, 'rents' => [12, 60, 180, 500, 700, 900], 'housePrice' => 100]],
             [TileType::STATION, 'Gare de Lyon', 15, ['price' => 200]],
-            [TileType::PROPERTY, 'Avenue Mozart', 16, ['colorGroup' => ColorGroup::ORANGE, 'price' => 180, 'rent' => 14]],
+            [TileType::PROPERTY, 'Avenue Mozart', 16, ['colorGroup' => ColorGroup::ORANGE, 'price' => 180, 'rents' => [14, 70, 200, 550, 750, 950], 'housePrice' => 100]],
             [TileType::COMMUNITY_CHEST, 'Caisse de Communauté', 17, []],
-            [TileType::PROPERTY, 'Boulevard Saint-Michel', 18, ['colorGroup' => ColorGroup::ORANGE, 'price' => 180, 'rent' => 14]],
-            [TileType::PROPERTY, 'Place Pigalle', 19, ['colorGroup' => ColorGroup::ORANGE, 'price' => 200, 'rent' => 16]],
+            [TileType::PROPERTY, 'Boulevard Saint-Michel', 18, ['colorGroup' => ColorGroup::ORANGE, 'price' => 180, 'rents' => [14, 70, 200, 550, 750, 950], 'housePrice' => 100]],
+            [TileType::PROPERTY, 'Place Pigalle', 19, ['colorGroup' => ColorGroup::ORANGE, 'price' => 200, 'rents' => [16, 80, 220, 600, 800, 1000], 'housePrice' => 100]],
             [TileType::FREE_PARKING, 'Parc Gratuit', 20, []],
-            [TileType::PROPERTY, 'Avenue Matignon', 21, ['colorGroup' => ColorGroup::RED, 'price' => 220, 'rent' => 18]],
+            [TileType::PROPERTY, 'Avenue Matignon', 21, ['colorGroup' => ColorGroup::RED, 'price' => 220, 'rents' => [18, 90, 250, 700, 875, 1050], 'housePrice' => 150]],
             [TileType::CHANCE, 'Chance', 22, []],
-            [TileType::PROPERTY, 'Boulevard Malesherbes', 23, ['colorGroup' => ColorGroup::RED, 'price' => 220, 'rent' => 18]],
-            [TileType::PROPERTY, 'Avenue Henri-Martin', 24, ['colorGroup' => ColorGroup::RED, 'price' => 240, 'rent' => 20]],
+            [TileType::PROPERTY, 'Boulevard Malesherbes', 23, ['colorGroup' => ColorGroup::RED, 'price' => 220, 'rents' => [18, 90, 250, 700, 875, 1050], 'housePrice' => 150]],
+            [TileType::PROPERTY, 'Avenue Henri-Martin', 24, ['colorGroup' => ColorGroup::RED, 'price' => 240, 'rents' => [20, 100, 300, 750, 925, 1100], 'housePrice' => 150]],
             [TileType::STATION, 'Gare du Nord', 25, ['price' => 200]],
-            [TileType::PROPERTY, 'Faubourg Saint-Honoré', 26, ['colorGroup' => ColorGroup::YELLOW, 'price' => 260, 'rent' => 22]],
-            [TileType::PROPERTY, 'Place de la Bourse', 27, ['colorGroup' => ColorGroup::YELLOW, 'price' => 260, 'rent' => 22]],
+            [TileType::PROPERTY, 'Faubourg Saint-Honoré', 26, ['colorGroup' => ColorGroup::YELLOW, 'price' => 260, 'rents' => [22, 110, 330, 800, 975, 1150], 'housePrice' => 150]],
+            [TileType::PROPERTY, 'Place de la Bourse', 27, ['colorGroup' => ColorGroup::YELLOW, 'price' => 260, 'rents' => [22, 110, 330, 800, 975, 1150], 'housePrice' => 150]],
             [TileType::COMPANY, 'Compagnie des Eaux', 28, ['price' => 150]],
-            [TileType::PROPERTY, 'Rue La Fayette', 29, ['colorGroup' => ColorGroup::YELLOW, 'price' => 280, 'rent' => 24]],
+            [TileType::PROPERTY, 'Rue La Fayette', 29, ['colorGroup' => ColorGroup::YELLOW, 'price' => 280, 'rents' => [24, 120, 360, 850, 1025, 1200], 'housePrice' => 150]],
             [TileType::GO_TO_JAIL, 'Allez en Prison', 30, []],
-            [TileType::PROPERTY, 'Avenue de Breteuil', 31, ['colorGroup' => ColorGroup::GREEN, 'price' => 300, 'rent' => 26]],
-            [TileType::PROPERTY, 'Avenue Foch', 32, ['colorGroup' => ColorGroup::GREEN, 'price' => 300, 'rent' => 26]],
+            [TileType::PROPERTY, 'Avenue de Breteuil', 31, ['colorGroup' => ColorGroup::GREEN, 'price' => 300, 'rents' => [26, 130, 390, 900, 1100, 1275], 'housePrice' => 200]],
+            [TileType::PROPERTY, 'Avenue Foch', 32, ['colorGroup' => ColorGroup::GREEN, 'price' => 300, 'rents' => [26, 130, 390, 900, 1100, 1275], 'housePrice' => 200]],
             [TileType::COMMUNITY_CHEST, 'Caisse de Communauté', 33, []],
-            [TileType::PROPERTY, 'Boulevard des Capucines', 34, ['colorGroup' => ColorGroup::GREEN, 'price' => 320, 'rent' => 28]],
+            [TileType::PROPERTY, 'Boulevard des Capucines', 34, ['colorGroup' => ColorGroup::GREEN, 'price' => 320, 'rents' => [28, 150, 450, 1000, 1200, 1400], 'housePrice' => 200]],
             [TileType::STATION, 'Gare Saint-Lazare', 35, ['price' => 200]],
             [TileType::CHANCE, 'Chance', 36, []],
-            [TileType::PROPERTY, 'Avenue des Champs-Élysées', 37, ['colorGroup' => ColorGroup::DARK_BLUE, 'price' => 350, 'rent' => 35]],
+            [TileType::PROPERTY, 'Avenue des Champs-Élysées', 37, ['colorGroup' => ColorGroup::DARK_BLUE, 'price' => 350, 'rents' => [35, 175, 500, 1100, 1300, 1500], 'housePrice' => 200]],
             [TileType::TAX, 'Taxe de luxe', 38, ['amount' => 100]],
-            [TileType::PROPERTY, 'Rue de la Paix', 39, ['colorGroup' => ColorGroup::DARK_BLUE, 'price' => 400, 'rent' => 50]],
+            [TileType::PROPERTY, 'Rue de la Paix', 39, ['colorGroup' => ColorGroup::DARK_BLUE, 'price' => 400, 'rents' => [50, 200, 600, 1400, 1700, 2000], 'housePrice' => 200]],
         ];
 
         foreach ($definitions as [$type, $name, $index, $options]) {
@@ -229,5 +229,16 @@ class Game {
 
     public function getPlayers(): array {
         return $this->players;
+    }
+
+    public function buildHouse(Property $property): void {
+        $owner = $property->getOwner();
+        if($owner === null || !$this->board->ownsWholeGroup($owner, $property->getColorGroup())){
+            throw new InvalidPlayerActionException("Le propriétaire ne possède pas tout le groupe.");
+        }
+        if($property->getBuildLevel() === 5) throw new InvalidPlayerActionException("Hôtel déjà présent.");
+        // TODO: Hypothèque
+        $owner->removeMoney($property->getHousePrice());
+        $property->setBuildLevel($property->getBuildLevel() + 1);
     }
 }
