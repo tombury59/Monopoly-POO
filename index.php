@@ -31,15 +31,13 @@ $game->start();
 
 echo $game->getBoard()->render() . PHP_EOL . PHP_EOL;
 
-for ($i = 0; $i < 16; $i++) {
+for ($i = 0; $i < 30; $i++) {
     $player = $game->getCurrentPlayer();
 
     try {
         $game->playTurn();
-        echo "{$player->getName()} est maintenant en case {$player->getPosition()->getIndex()}, argent : {$player->getMoney()}" . PHP_EOL;
-
-        $game->buyCurrentTile();
-        echo "{$player->getName()} a acheté la case courante." . PHP_EOL;
+        $status = $player->isInJail() ? ' [EN PRISON]' : '';
+        echo "{$player->getName()} -> case {$player->getPosition()->getIndex()}, argent : {$player->getMoney()}{$status}" . PHP_EOL;
     } catch (MonopolyException $e) {
         echo "Erreur pour {$player->getName()} : {$e->getMessage()}" . PHP_EOL;
     }
@@ -47,5 +45,6 @@ for ($i = 0; $i < 16; $i++) {
 
 echo PHP_EOL . "État final des joueurs :" . PHP_EOL;
 foreach ($game->getPlayers() as $player) {
-    echo "{$player->getName()} — position {$player->getPosition()->getIndex()}, argent : {$player->getMoney()}" . PHP_EOL;
+    $status = $player->isInJail() ? ' [EN PRISON]' : '';
+    echo "{$player->getName()} — position {$player->getPosition()->getIndex()}, argent : {$player->getMoney()}{$status}" . PHP_EOL;
 }

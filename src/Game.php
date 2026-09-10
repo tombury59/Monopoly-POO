@@ -29,33 +29,56 @@ class Game {
         return $this->players[$this->currentPlayerIndex];
     }
 
-    public function playTurn(): void {
-        // TODO: Gérer le cas d'un double aux dés => rejouer
+    public function playTurn(): void
+    {
         $playingPlayer = $this->getCurrentPlayer();
-        // TODO: notify
-        $step = array_sum($this->dice->rollTwo());
-        
+        $doublesCount = 0;
 
-        $actualPosition=$playingPlayer->getPosition();
+        do {
+            $dice = $this->dice->rollTwo();
+            // TODO: notify
 
-        // player who passes the Go square receive +200, but if he stop on this square:
-        // Go::applyEffect() apply and add a other +200
-        if( ($actualPosition->getIndex()+$step) >= $this->board->getBoardSize() ){
-            // TODO notify
-            $playingPlayer->addMoney(200);
-        }
+            $isDouble = $dice[0] === $dice[1];
+            $step = array_sum($dice);
+            
+            if ($isDouble) {
+                $doublesCount++;
+                // TODO: notify
+            }
 
-        $squareToLand = $actualPosition->next($step);
-        $playingPlayer->setPosition($squareToLand);
-        // TODO: notify
+            if ($doublesCount === 3) {
+                $goToJailTile = $this->board->findTileByType(TileType::GO_TO_JAIL);
+                if ($goToJailTile === null) {
+                    throw new MonopolyException("Aucune case GoToJail trouvée sur le plateau.");
+                }
+                $goToJailTile->landOn($playingPlayer, $this);
+                // TODO: notify
+                break;
+            }
 
-        $tile = $this->board->getTileAt($squareToLand);
-        if ($tile === null) {
-            throw new MonopolyException("Aucune case trouvée à la position {$squareToLand->toKey()}.");
-        }
+            $actualPosition = $playingPlayer->getPosition();
 
-        // TODO: notify
-        $tile->landOn($playingPlayer, $this);
+            // player who passes the Go square receive +200, but if he stops on this square:
+            // Go::applyEffect() applies and adds another +200
+            if (($actualPosition->getIndex() + $step) >= $this->board->getBoardSize()) {
+                $playingPlayer->addMoney(200);
+                // TODO: notify
+            }
+
+            $squareToLand = $actualPosition->next($step);
+            $playingPlayer->setPosition($squareToLand);
+            // TODO: notify
+
+            $tile = $this->board->getTileAt($squareToLand);
+            if ($tile === null) {
+                throw new MonopolyException("Aucune case trouvée à la position {$squareToLand->toKey()}.");
+            }
+
+            // TODO: notify
+            $tile->landOn($playingPlayer, $this);
+
+        } while ($isDouble);
+
         $this->nextPlayer();
         // TODO: notify
     }
