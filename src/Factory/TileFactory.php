@@ -23,6 +23,10 @@ class TileFactory {
                 $name, 
                 $position
             ),
+            TileType::GO_TO_JAIL => new GoToJail(
+                $name, 
+                $position
+            ),
 
             TileType::TAX => new Tax(
                 $name, $position, 
@@ -43,7 +47,7 @@ class TileFactory {
                 $options['colorGroup'] ?? throw new MonopolyException("Le paramètre 'colorGroup' est requis pour créer une Property."), 
                 $options['price'] ?? 0 ,
                 $options['rent'] ?? 0
-            )
+            ),
         };
     }
 

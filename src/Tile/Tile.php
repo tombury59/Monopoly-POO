@@ -49,7 +49,7 @@ abstract class Tile implements Renderable{
 
     abstract protected function applyEffect(Player $player, Game $game): void;
 
-    protected function isOwnable(): bool {
+    public function isOwnable(): bool {
         return false;
     }
 }

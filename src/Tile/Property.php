@@ -38,7 +38,7 @@ class Property extends Tile {
         return $this->owner !== null;
     }
 
-    protected  function isOwnable(): bool {
+    public  function isOwnable(): bool {
         return true;
     }
 
