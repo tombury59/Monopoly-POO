@@ -1,6 +1,8 @@
 <?php
 
 require_once __DIR__ . '/src/Enum/GameEventType.php';
+require_once __DIR__ . '/src/Enum/TurnPhase.php';
+require_once __DIR__ . '/src/Enum/PlayerAction.php';
 require_once __DIR__ . '/src/GameEvent.php';
 require_once __DIR__ . '/src/Contract/GameObserver.php';
 require_once __DIR__ . '/src/Observer/ConsoleGameObserver.php';
@@ -43,7 +45,7 @@ function ligne(string $titre = ''): void
     }
 }
 
-$game = new Game(['Alice', 'Bob']);
+$game = new Game(['Alice', 'Bob','Jacob']);
 $game->addObserver(new ConsoleGameObserver());
 $game->start();
 

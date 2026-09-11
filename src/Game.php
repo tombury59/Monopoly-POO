@@ -14,6 +14,12 @@ class Game {
 
     public const JAIL_BAIL = 50;
 
+
+    private TurnPhase $phase = TurnPhase::AWAITING_ROLL;
+    private int $doublesCount = 0;
+
+
+
     public function __construct(array $playerNames) {
         foreach($playerNames as $playerName){
             $this->players[] = new Player($playerName);
@@ -375,7 +381,6 @@ class Game {
         if($this->isGameOver()) $this->emit(GameEventType::GAME_OVER);
     }
 
-
     public function isGameOver(): bool {
         return count($this->players)<=1;
     }
@@ -403,6 +408,137 @@ class Game {
 
     public function emit(GameEventType $type, array $context = []): void {
         $this->notify(new GameEvent($type, $context));
+    }
+
+    
+    /*
+    * Modèle de tour interactif
+    */
+
+    public function getCurrentPhase(): TurnPhase {
+        return $this->phase;
+    }
+
+    public function getAvailableActions(): array {
+        $player = $this->getCurrentPlayer();
+
+        return match ($this->phase) {
+            TurnPhase::AWAITING_ROLL        => $this->actionsAwaitingRoll($player),
+            TurnPhase::AWAITING_ACTION      => $this->actionsAwaitingAction($player),
+            TurnPhase::AWAITING_LIQUIDATION => $this->actionsAwaitingLiquidation($player),
+            TurnPhase::TURN_OVER            => [], // pass
+        };
+    }
+
+    private function actionsAwaitingRoll(Player $player): array {
+        $right=[];
+        if (!$player->isInJail()) {
+            $right[] = PlayerAction::ROLL;
+        } else {
+            $right[] = PlayerAction::ROLL;
+            $right[] = PlayerAction::PAY_BAIL;
+            if ($player->hasGetOutOfJailCard()) {
+                $right[] = PlayerAction::USE_JAIL_CARD;
+            }
+        }
+        return $right;
+    }
+
+    private function actionsAwaitingAction(Player $player): array {
+        $actions = [PlayerAction::END_TURN];
+
+        $tile=$this->board->getTileAt($player->getPosition());
+        if($tile !== null && $tile->isOwnable() && !$tile->isOwned()){
+            $actions[]= PlayerAction::BUY_TILE;
+        }
+
+        $ownsProperty     = false;
+        $ownsMortgageable = false;
+
+        foreach ($this->board->getTiles() as $t) {
+            if ($t instanceof Mortgageable && $t->getOwner() === $player) {
+                $ownsMortgageable = true;
+                if ($t instanceof Property) {
+                    $ownsProperty = true;
+                }
+            }
+        }
+
+        if ($ownsProperty) {
+            $actions[] = PlayerAction::BUILD_HOUSE;
+            $actions[] = PlayerAction::SELL_HOUSE;
+        }
+        if ($ownsMortgageable) {
+            $actions[] = PlayerAction::MORTGAGE;
+            $actions[] = PlayerAction::UNMORTGAGE;
+        }
+
+        return $actions;
+    }
+
+    private function actionsAwaitingLiquidation(Player $player): array {
+        return [];
+    }
+
+    public function endTurn(): void {
+        $this->nextPlayer();
+        $this->phase=TurnPhase::AWAITING_ROLL;
+        $this->doublesCount = 0;
+        // TODO emit turn_ended here instead in playTurn
+    }
+
+    public function roll(): void {
+        if ($this->phase !== TurnPhase::AWAITING_ROLL) {
+            throw new InvalidPlayerActionException("Ce n'est pas le moment de lancer les dés.");
+        }
+
+        $player = $this->getCurrentPlayer();
+
+        // TODO prison cas => for now player is free
+
+        $dice = $this->dice->rollTwo();
+        $this->emit(GameEventType::DICE_ROLLED, ['dice1' => $dice[0], 'dice2' => $dice[1]]);
+
+        $isDouble = $dice[0] === $dice[1];
+        $step = $this->lastDiceTotal = array_sum($dice);
+
+        if ($isDouble) {
+            $this->doublesCount++;
+            $this->emit(GameEventType::DOUBLE_ROLLED);
+        }
+
+        if ($this->doublesCount === 3) {
+            $goToJailTile = $this->board->findTileByType(TileType::GO_TO_JAIL);
+            if ($goToJailTile === null) {
+                throw new MonopolyException("Aucune case GoToJail trouvée sur le plateau.");
+            }
+            $goToJailTile->landOn($player, $this);
+            $this->emit(GameEventType::THREE_DOUBLES);
+            $this->phase=TurnPhase::TURN_OVER;
+            return;
+        }
+
+        try {
+            $this->resolveMovement($player, $step);
+        } catch (InsufficientFundsException $e) {
+                $this->declareBankruptcy($player);
+                $this->phase=TurnPhase::TURN_OVER;
+                return;
+                // TODO implement interactive liquidation
+        }
+
+        if (!in_array($player, $this->players, true)) {
+            $this->phase = TurnPhase::TURN_OVER;
+            return;
+        }
+
+        if ($player->isInJail()) {
+            $this->phase = TurnPhase::TURN_OVER;
+        } elseif ($isDouble) {
+            $this->phase = TurnPhase::AWAITING_ROLL;
+        } else {
+            $this->phase = TurnPhase::AWAITING_ACTION;
+        }
     }
 
 }
