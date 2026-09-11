@@ -1,15 +1,15 @@
-# TP3 - Finalisation : rendre le moteur observable, configurable et testé
+# TP3 - Finalisation : rendre le moteur observable, pilotable, complet et testé
 
 ## Objectif
 
-Les TP1 et TP2 ont produit un **moteur de jeu complet** : plateau, cases, joueurs, règles (déplacement, prison, cartes, constructions, loyers variables, hypothèques, faillite). Ce TP ne rajoute presque aucune *règle* : il transforme ce moteur en un **produit fini**, prêt à être branché sur un vrai front et à évoluer sans se casser.
+Les TP1 et TP2 ont produit un **moteur de jeu complet** : plateau, cases, joueurs, règles (déplacement, prison, cartes, constructions, loyers variables, hypothèques, faillite). Ce TP rajoute peu de *règles* (l'échange entre joueurs étant la principale) : il transforme surtout ce moteur en un **produit fini**, prêt à être branché sur un vrai front et à évoluer sans se casser.
 
 Quatre axes :
 
 1. **Observable** — le moteur notifie ce qui se passe (pattern Observer), au lieu de modifier son état en silence.
-2. **Configurable** — certaines règles deviennent **activables/désactivables** (à commencer par le Parc Gratuit « jackpot »), sans toucher au cœur du jeu.
-3. **Pilotable** — le tour n'est plus un bloc « tout-en-un » : le moteur expose ses **points de décision** pour qu'un vrai front (web, CLI interactif) puisse rendre la main au joueur. C'est la marche décisive vers une application jouable.
-4. **Fiabilisé** — autoloader propre, tests automatisés, et finition des cas laissés en suspens dans le TP2.
+2. **Pilotable** — le tour n'est plus un bloc « tout-en-un » : le moteur expose ses **points de décision** pour qu'un vrai front (web, CLI interactif) puisse rendre la main au joueur. C'est la marche décisive vers une application jouable.
+3. **Complet & configurable** — on finit les règles laissées de côté (loyers spéciaux des cartes, échanges entre joueurs) et on rend certaines variantes **activables/désactivables** sans toucher au cœur du jeu.
+4. **Fiabilisé** — autoloader propre et tests automatisés.
 
 ## Prérequis
 
@@ -47,18 +47,28 @@ monopoly/
         └── Company.php                (modifié — loyer spécial carte)
 ```
 
-## Ordre de travail conseillé
+## Ordre de travail
 
+Le TP est découpé en trois blocs, à faire dans l'ordre : l'architecture d'abord (elle sert de socle), les règles ensuite (elles s'appuient dessus), l'industrialisation en dernier.
+
+**Bloc A — Architecture (rendre le moteur observable et pilotable)**
 1. Notifications d'événements (Observer) — la fondation, tout le reste s'y appuie
-2. Règles activables + Parc Gratuit « jackpot »
+2. Modèle de tour interactif — le grand pas vers une vraie application
+
+**Bloc B — Compléter et enrichir les règles**
 3. Loyers spéciaux des cartes « gare/compagnie la plus proche »
-4. Autoloader (Composer / PSR-4)
-5. Tests automatisés
-6. Modèle de tour interactif — le grand pas vers une vraie application
+4. Échanges de propriétés entre joueurs
+5. Règles optionnelles activables (Parc Gratuit « jackpot », rachat de propriété)
+
+**Bloc C — Industrialiser**
+6. Autoloader (Composer / PSR-4)
+7. Tests automatisés
 
 Chaque partie est indépendante : vous pouvez vous arrêter après n'importe laquelle et avoir un projet cohérent.
 
 ---
+
+# Bloc A — Architecture
 
 ## 1. Notifications d'événements (Observer)
 
@@ -160,142 +170,7 @@ Juste **après** l'action réelle — **jamais à la place**. L'Observer ne port
 
 ---
 
-## 2. Règles optionnelles activables (dont le Parc Gratuit)
-
-### Problème
-
-Certaines règles sont des **variantes** : le « jackpot » du Parc Gratuit (règle maison très répandue mais **non officielle**), ou d'autres options que vous voudriez pouvoir activer selon la partie. Les coder « en dur » dans `Game` obligerait à modifier le moteur pour changer une variante. On veut pouvoir dire, à la création de la partie : « cette partie joue avec le jackpot, celle-là non ».
-
-### Ce qui est imposé : un objet de configuration
-
-Fichier :
-
-```
-src/Config/GameRules.php
-```
-
-Une classe (ou un enum de flags, à vous) qui centralise les options activables. Au minimum :
-
-```php
-private bool $freeParkingJackpot = false;
-
-public function __construct(bool $freeParkingJackpot = false)
-public function isFreeParkingJackpotEnabled(): bool
-```
-
-`Game::__construct()` accepte un `GameRules` **optionnel** (par défaut : tout désactivé, donc règles officielles) :
-
-```php
-public function __construct(array $playerNames, ?GameRules $rules = null)
-```
-
-Le TP1 imposait `__construct(array $playerNames)`. Ajouter ici un **paramètre optionnel en fin de signature** est une extension **autorisée** — exactement la convention déjà appliquée au TP2 pour étendre `Property::__construct` : les 5 paramètres imposés ne bougent pas, aucun appel existant (`new Game([...])`) n'est cassé. Si vous préférez ne pas toucher du tout au constructeur, une alternative propre est un setter dédié (`Game::setRules(GameRules $rules): void`) appelé après la création.
-
-Ainsi le comportement par défaut reste **strictement officiel** ; les variantes ne s'activent que sur demande explicite.
-
-### Le Parc Gratuit « jackpot »
-
-Règle maison : toutes les sommes payées à la banque (taxes, amendes…) vont dans une **cagnotte** au centre du plateau ; le joueur qui s'arrête sur le Parc Gratuit **récupère toute la cagnotte**, qui repart à zéro.
-
-Ce qu'il faut faire :
-
-- une cagnotte sur `Game` (`private int $freeParkingPot = 0;`) avec de quoi l'alimenter et la vider ;
-- `FreeParking::applyEffect()` : **si** la règle est activée (`GameRules`), verser la cagnotte au joueur et la remettre à 0 ; sinon, comportement officiel (rien).
-
-### La belle façon de l'alimenter : via l'Observer
-
-C'est ici que le point 1 paie. Plutôt que de coupler `Tax` (et les amendes de cartes) à la cagnotte de `Game`, **écrivez un observateur** :
-
-```
-src/Observer/FreeParkingObserver.php
-```
-
-Il écoute les événements `tax_paid` (et éventuellement `money_lost`) et remplit la cagnotte — **sans que `Tax` ni `Card` ne connaissent l'existence du jackpot**. On ne l'ajoute à la partie que si la règle est activée.
-
-Réfléchissez : comment cet observateur accède-t-il à la cagnotte ? (Il peut recevoir le `Game` dans son constructeur, ou `Game` peut exposer `addToFreeParkingPot(int)`.) L'important : `Tax` reste ignorante du jackpot, exactement comme le veut l'Observer.
-
-### Autres variantes possibles (facultatif)
-
-Si vous voulez enrichir `GameRules` : loyer non perçu quand le propriétaire est en prison, enchères sur refus d'achat, salaire de Départ configurable… Une option = un flag dans `GameRules` + une lecture au bon endroit. N'en abusez pas : le Parc Gratuit suffit à démontrer le mécanisme.
-
-### Attendu
-
-- ✅ `GameRules` centralise les options ; par défaut, la partie joue les **règles officielles** ;
-- ✅ le jackpot du Parc Gratuit fonctionne quand il est activé, ne fait rien quand il ne l'est pas ;
-- ✅ `Tax` et `Card` **ne connaissent pas** la cagnotte : elle est alimentée via un observateur ;
-- ✅ activer/désactiver la règle ne demande **aucune** modification du moteur, juste un `GameRules` différent à la création.
-
----
-
-## 3. Loyers spéciaux des cartes « gare/compagnie la plus proche »
-
-### Rappel
-
-Au TP2, les cartes `NEAREST_STATION` / `NEAREST_UTILITY` se contentaient d'avancer le joueur, qui payait ensuite le loyer **normal**. Les vraies cartes imposent un loyer **spécial** :
-
-- gare la plus proche : le joueur paie **le double** du loyer de gare normal ;
-- compagnie la plus proche : le joueur **relance les dés** et paie **10×** le résultat, quel que soit le nombre de compagnies possédées.
-
-### Ce qu'il faut faire
-
-Le défi : `Station`/`Company::applyEffect()` ne savent pas *comment* le joueur est arrivé (par les dés, ou poussé par une carte). Réfléchissez à comment transmettre cette information — par exemple un indicateur temporaire sur `Game` (« le prochain atterrissage vient d'une carte X »), posé par la carte avant de déclencher `landOn()` et consommé par `applyEffect()`, plutôt que de dupliquer la logique de loyer dans `Card`.
-
-C'est une vraie question de conception ; ne la traitez que si les points 1 et 2 sont finis. Elle reste **optionnelle** dans les attendus.
-
-### Attendu (optionnel)
-
-- ✅ la carte « gare la plus proche » fait payer le double du loyer de gare ;
-- ✅ la carte « compagnie la plus proche » fait payer 10× un lancer de dés ;
-- ✅ aucune duplication de la logique de loyer entre `Card` et `Station`/`Company`.
-
----
-
-## 4. Autoloader (Composer / PSR-4)
-
-### Problème
-
-`index.php` empile une trentaine de `require_once` à la main, dans le bon ordre. Chaque nouvelle classe oblige à en ajouter un (vous vous êtes déjà fait avoir avec `InvalidPropertyLevelException`). Un vrai projet PHP charge ses classes automatiquement.
-
-### Ce qu'il faut faire
-
-Deux niveaux, au choix :
-
-- **Niveau simple** — un `spl_autoload_register()` maison en tête de `index.php` : à partir du nom de classe, il calcule le chemin du fichier et le charge. Aucune dépendance externe. Suppose une convention de nommage fichier ↔ classe (que vous respectez déjà en grande partie).
-- **Niveau pro (recommandé)** — **Composer** avec autoloading **PSR-4** : un `composer.json` déclarant un namespace racine (ex. `Monopoly\`) mappé sur `src/`, puis `composer dump-autoload`. Cela impose d'ajouter un `namespace` en tête de chaque fichier et des `use` là où c'est nécessaire — un refactor mécanique mais formateur.
-
-Dans les deux cas, `index.php` se réduit à **un seul** `require` (l'autoloader) au lieu de trente.
-
-### Attendu
-
-- ✅ plus de longue liste de `require_once` manuels ;
-- ✅ ajouter une classe ne demande plus de toucher à `index.php` ;
-- ✅ (niveau pro) namespaces PSR-4 cohérents, `composer.json` fonctionnel.
-
----
-
-## 5. Tests automatisés
-
-### Problème
-
-Vous avez validé chaque mécanique avec des scripts jetables. Un projet fini garde ses tests : ils documentent le comportement attendu et détectent les régressions à chaque modification.
-
-### Ce qu'il faut faire
-
-- Installer **PHPUnit** (via Composer — d'où l'intérêt d'avoir fait le point 4 avant).
-- Un dossier `tests/`, une classe de test par classe métier importante (`SquareTest`, `PropertyTest`, `BoardTest`, `GameTest`…).
-- Convertissez vos scénarios de scratchpad en vrais tests : loyer selon le niveau de construction, loyer doublé du monopole nu, comptage des gares, cycle de la carte de prison, faillite, etc.
-
-Conseil : privilégiez des tests **déterministes**. Pour ce qui dépend du hasard (dés, tirage de cartes), injectez ou fixez la source d'aléa, ou testez les méthodes de calcul isolément (comme `Property::getRent()`), plutôt qu'une partie entière.
-
-### Attendu
-
-- ✅ une suite PHPUnit qui passe (`vendor/bin/phpunit`) ;
-- ✅ au moins les mécaniques clés du TP2 couvertes ;
-- ✅ des tests déterministes, indépendants du hasard.
-
----
-
-## 6. Modèle de tour interactif
+## 2. Modèle de tour interactif
 
 ### Problème
 
@@ -323,7 +198,7 @@ Les étapes d'un tour, par exemple : `AWAITING_ROLL` (on attend le lancer), `AWA
 src/Enum/PlayerAction.php
 ```
 
-Les actions qu'un joueur peut se voir proposer : `ROLL`, `BUY_TILE`, `BUILD_HOUSE`, `SELL_HOUSE`, `MORTGAGE`, `UNMORTGAGE`, `USE_JAIL_CARD`, `PAY_BAIL`, `END_TURN`… Ce sont exactement les gestes que vous avez déjà codés — vous ne réécrivez pas la logique, vous la **nommez** pour pouvoir la proposer.
+Les actions qu'un joueur peut se voir proposer : `ROLL`, `BUY_TILE`, `BUILD_HOUSE`, `SELL_HOUSE`, `MORTGAGE`, `UNMORTGAGE`, `USE_JAIL_CARD`, `PAY_BAIL`, `END_TURN`… (on l'enrichira au fil du bloc B avec `PROPOSE_TRADE`, `BUYOUT_TILE`, etc.). Ce sont exactement les gestes que vous avez déjà codés — vous ne réécrivez pas la logique, vous la **nommez** pour pouvoir la proposer.
 
 **Sur `Game`, l'API de pilotage :**
 
@@ -356,7 +231,7 @@ tant que la phase n'est pas TURN_OVER :
 
 Le même moteur alimente alors une UI web, un CLI interactif **ou** un joueur automatique — chacun n'est qu'une façon différente de choisir dans `getAvailableActions()`.
 
-### Le lien avec l'Observer (point 1)
+### Le lien avec l'Observer
 
 Les deux se complètent : `getAvailableActions()` dit **ce que le joueur peut faire** (avant l'action), l'Observer dit **ce qui vient de se passer** (après l'action). Ensemble, ils suffisent à piloter n'importe quel front sans jamais lire l'intérieur du moteur.
 
@@ -378,6 +253,212 @@ Dans les deux cas, `declareBankruptcy()` (écrit au TP2 point 8) reste le **dern
 - ✅ `getAvailableActions()` ne propose que des actions réellement légales dans l'état courant ;
 - ✅ aucune logique de règle dupliquée : `getAvailableActions()` lit l'état, les méthodes d'action gardent leurs vérifications ;
 - ✅ une petite boucle interactive (même en console, avec `readline()`) démontrant qu'on pilote une partie coup par coup.
+
+---
+
+# Bloc B — Compléter et enrichir les règles
+
+## 3. Loyers spéciaux des cartes « gare/compagnie la plus proche »
+
+### Rappel
+
+Au TP2, les cartes `NEAREST_STATION` / `NEAREST_UTILITY` se contentaient d'avancer le joueur, qui payait ensuite le loyer **normal**. Les vraies cartes imposent un loyer **spécial** :
+
+- gare la plus proche : le joueur paie **le double** du loyer de gare normal ;
+- compagnie la plus proche : le joueur **relance les dés** et paie **10×** le résultat, quel que soit le nombre de compagnies possédées.
+
+### Ce qu'il faut faire
+
+Le défi : `Station`/`Company::applyEffect()` ne savent pas *comment* le joueur est arrivé (par les dés, ou poussé par une carte). Réfléchissez à comment transmettre cette information — par exemple un indicateur temporaire sur `Game` (« le prochain atterrissage vient d'une carte X »), posé par la carte avant de déclencher `landOn()` et consommé par `applyEffect()`, plutôt que de dupliquer la logique de loyer dans `Card`.
+
+C'est une vraie question de conception. Elle reste **optionnelle** dans les attendus.
+
+### Attendu (optionnel)
+
+- ✅ la carte « gare la plus proche » fait payer le double du loyer de gare ;
+- ✅ la carte « compagnie la plus proche » fait payer 10× un lancer de dés ;
+- ✅ aucune duplication de la logique de loyer entre `Card` et `Station`/`Company`.
+
+---
+
+## 4. Échanges de propriétés entre joueurs
+
+### Pourquoi
+
+Sans échange, dans une partie à plusieurs joueurs qui achètent au hasard, les cases d'un même groupe de couleur finissent presque toujours dispersées entre plusieurs propriétaires. Or on ne construit que sur un **groupe complet** : sans monopole, personne ne bâtit, les loyers restent dérisoires face aux +200 de la case Départ, et **la partie ne se termine jamais**. L'échange est le mécanisme qui permet aux joueurs de **regrouper** les cases et de débloquer les constructions — c'est une vraie règle du Monopoly, et accessoirement la solution au problème de parties interminables.
+
+### La règle
+
+Deux joueurs se mettent d'accord pour échanger un ensemble de **biens** (`Property`, `Station`, `Company`) et/ou une **somme d'argent**, dans les deux sens. Contraintes officielles :
+
+- on ne peut échanger que des biens qu'on **possède** ;
+- un bien portant des **constructions** ne peut pas être échangé : il faut d'abord revendre les maisons/hôtels de tout son groupe (`sellHouse`, TP2 point 5) ;
+- un bien **hypothéqué** peut être échangé, mais l'acquéreur hérite de l'hypothèque (à lui de la lever ensuite via `unmortgage`, avec l'intérêt) — à vous de décider si vous gérez ce cas ou si vous l'interdisez pour rester simple.
+
+### Ce qui est imposé
+
+Une méthode sur `Game`, par exemple :
+
+```php
+public function trade(
+    Player $a,
+    Player $b,
+    array $biensDeA,      // Mortgageable[] cédés par A à B
+    array $biensDeB,      // Mortgageable[] cédés par B à A
+    int $argentDeAversB = 0
+): void
+```
+
+Elle doit, **avant de rien transférer**, tout **valider** (chaque bien appartient bien au bon joueur ; aucun bien construit ; l'argent est disponible) et lever une `InvalidPlayerActionException` sinon — un échange est **atomique** : soit tout passe, soit rien. Ne modifiez l'état qu'une fois toutes les vérifications passées, pour ne pas laisser un échange à moitié fait.
+
+Le transfert lui-même réutilise ce que vous avez déjà : `setOwner()` pour changer de propriétaire, `addMoney()`/`removeMoney()` pour la soulte. Aucune nouvelle logique de possession à réécrire.
+
+### Le lien avec le reste
+
+- **Observer (bloc A)** : émettez un événement `trade_completed` (avec le détail dans le `context`).
+- **Modèle interactif (bloc A)** : proposer/accepter un échange est une **négociation** entre deux joueurs — l'action `PROPOSE_TRADE` a sa place dans `getAvailableActions()`. Le moteur, lui, ne fait qu'**exécuter** un échange déjà accepté ; il n'a pas à décider qui propose quoi.
+
+### Attendu
+
+- ✅ `Game::trade()` valide entièrement avant de transférer (atomique) ;
+- ✅ refus d'échanger un bien non possédé, ou portant des constructions ;
+- ✅ après l'échange, un joueur qui réunit un groupe complet peut immédiatement construire ;
+- ✅ aucune duplication : le transfert s'appuie sur `setOwner`/`addMoney`/`removeMoney` existants.
+
+---
+
+## 5. Règles optionnelles activables
+
+### Problème
+
+Certaines règles sont des **variantes** : le « jackpot » du Parc Gratuit (règle maison très répandue mais **non officielle**), ou le rachat de propriété façon *Business Tour*. Les coder « en dur » dans `Game` obligerait à modifier le moteur pour changer une variante. On veut pouvoir dire, à la création de la partie : « cette partie joue avec telle variante, celle-là non ».
+
+### Ce qui est imposé : un objet de configuration
+
+Fichier :
+
+```
+src/Config/GameRules.php
+```
+
+Une classe (ou un enum de flags, à vous) qui centralise les options activables. Au minimum :
+
+```php
+private bool $freeParkingJackpot = false;
+private bool $propertyBuyout = false;
+
+public function __construct(bool $freeParkingJackpot = false, bool $propertyBuyout = false)
+public function isFreeParkingJackpotEnabled(): bool
+public function isPropertyBuyoutEnabled(): bool
+```
+
+`Game::__construct()` accepte un `GameRules` **optionnel** (par défaut : tout désactivé, donc règles officielles) :
+
+```php
+public function __construct(array $playerNames, ?GameRules $rules = null)
+```
+
+Le TP1 imposait `__construct(array $playerNames)`. Ajouter ici un **paramètre optionnel en fin de signature** est une extension **autorisée** — exactement la convention déjà appliquée au TP2 pour étendre `Property::__construct` : les paramètres imposés ne bougent pas, aucun appel existant (`new Game([...])`) n'est cassé. Si vous préférez ne pas toucher du tout au constructeur, une alternative propre est un setter dédié (`Game::setRules(GameRules $rules): void`) appelé après la création.
+
+Ainsi le comportement par défaut reste **strictement officiel** ; les variantes ne s'activent que sur demande explicite.
+
+### 5.1 — Le Parc Gratuit « jackpot »
+
+Règle maison : toutes les sommes payées à la banque (taxes, amendes…) vont dans une **cagnotte** au centre du plateau ; le joueur qui s'arrête sur le Parc Gratuit **récupère toute la cagnotte**, qui repart à zéro.
+
+Ce qu'il faut faire :
+
+- une cagnotte sur `Game` (`private int $freeParkingPot = 0;`) avec de quoi l'alimenter et la vider ;
+- `FreeParking::applyEffect()` : **si** la règle est activée (`GameRules`), verser la cagnotte au joueur et la remettre à 0 ; sinon, comportement officiel (rien).
+
+**La belle façon de l'alimenter : via l'Observer.** C'est ici que le bloc A paie. Plutôt que de coupler `Tax` (et les amendes de cartes) à la cagnotte de `Game`, **écrivez un observateur** :
+
+```
+src/Observer/FreeParkingObserver.php
+```
+
+Il écoute les événements `tax_paid` (et éventuellement `money_lost`) et remplit la cagnotte — **sans que `Tax` ni `Card` ne connaissent l'existence du jackpot**. On ne l'ajoute à la partie que si la règle est activée. Réfléchissez : comment cet observateur accède-t-il à la cagnotte ? (Il peut recevoir le `Game` dans son constructeur, ou `Game` peut exposer `addToFreeParkingPot(int)`.) L'important : `Tax` reste ignorante du jackpot, exactement comme le veut l'Observer.
+
+### 5.2 — Le rachat de propriété (variante « Business Tour »)
+
+Règle popularisée par *Business Tour* : quand un joueur s'arrête sur une propriété **adverse**, il paie d'abord le loyer **normalement**, puis a la **possibilité de racheter** cette propriété à son propriétaire. Le propriétaire encaisse le prix de rachat et perd la case ; l'acheteur en devient propriétaire.
+
+Ce qu'il faut faire :
+
+- le loyer se paie **comme aujourd'hui** (via `applyEffect`, inchangé) — le rachat est une action **séparée**, proposée *après* l'atterrissage ;
+- une méthode `Game`, par exemple :
+
+  ```php
+  public function buyoutTile(Player $acheteur, Mortgageable $bien): void
+  ```
+
+  qui valide (règle activée, le bien a un propriétaire **différent** de l'acheteur, l'acheteur a les fonds), débite l'acheteur du **prix de rachat**, crédite l'ancien propriétaire, puis transfère via `setOwner()`. Comme toute action, elle lève `InvalidPlayerActionException` si les conditions ne sont pas réunies (dont : la règle est désactivée).
+
+Décisions de conception à trancher (assumez-les) :
+
+- **le prix de rachat.** Le prix d'achat brut rendrait le rachat trop facile et déstabiliserait le jeu. Une base raisonnable : un **multiple** du prix (par ex. 2×), éventuellement porté par `GameRules`. À vous.
+- **les cases construites / hypothéquées** : rachat interdit tant qu'il y a des constructions ? l'hypothèque est-elle transférée ? Le plus simple est de n'autoriser le rachat que sur une case **nue et non hypothéquée** ; documentez votre choix.
+
+**Lien interactif (bloc A) :** le rachat est une **décision** → l'action `BUYOUT_TILE` apparaît dans `getAvailableActions()` en phase `AWAITING_ACTION`, uniquement quand le joueur est sur une case adverse rachetable **et** que la règle est activée. Émettez aussi un événement Observer (`tile_bought_out`).
+
+### Autres variantes possibles (facultatif)
+
+Si vous voulez enrichir `GameRules` : loyer non perçu quand le propriétaire est en prison, enchères sur refus d'achat, salaire de Départ configurable… Une option = un flag dans `GameRules` + une lecture au bon endroit. N'en abusez pas : le Parc Gratuit et le rachat suffisent à démontrer le mécanisme.
+
+### Attendu
+
+- ✅ `GameRules` centralise les options ; par défaut, la partie joue les **règles officielles** ;
+- ✅ le jackpot du Parc Gratuit fonctionne quand il est activé, ne fait rien quand il ne l'est pas ;
+- ✅ `Tax` et `Card` **ne connaissent pas** la cagnotte : elle est alimentée via un observateur ;
+- ✅ le rachat de propriété fonctionne quand il est activé (loyer payé d'abord, puis transfert contre paiement), et est refusé quand il ne l'est pas ;
+- ✅ activer/désactiver une règle ne demande **aucune** modification du moteur, juste un `GameRules` différent à la création.
+
+---
+
+# Bloc C — Industrialiser
+
+## 6. Autoloader (Composer / PSR-4)
+
+### Problème
+
+`index.php` empile une trentaine de `require_once` à la main, dans le bon ordre. Chaque nouvelle classe oblige à en ajouter un (vous vous êtes déjà fait avoir avec `InvalidPropertyLevelException`). Un vrai projet PHP charge ses classes automatiquement.
+
+### Ce qu'il faut faire
+
+Deux niveaux, au choix :
+
+- **Niveau simple** — un `spl_autoload_register()` maison en tête de `index.php` : à partir du nom de classe, il calcule le chemin du fichier et le charge. Aucune dépendance externe. Suppose une convention de nommage fichier ↔ classe (que vous respectez déjà en grande partie).
+- **Niveau pro (recommandé)** — **Composer** avec autoloading **PSR-4** : un `composer.json` déclarant un namespace racine (ex. `Monopoly\`) mappé sur `src/`, puis `composer dump-autoload`. Cela impose d'ajouter un `namespace` en tête de chaque fichier et des `use` là où c'est nécessaire — un refactor mécanique mais formateur.
+
+Dans les deux cas, `index.php` se réduit à **un seul** `require` (l'autoloader) au lieu de trente.
+
+### Attendu
+
+- ✅ plus de longue liste de `require_once` manuels ;
+- ✅ ajouter une classe ne demande plus de toucher à `index.php` ;
+- ✅ (niveau pro) namespaces PSR-4 cohérents, `composer.json` fonctionnel.
+
+---
+
+## 7. Tests automatisés
+
+### Problème
+
+Vous avez validé chaque mécanique avec des scripts jetables. Un projet fini garde ses tests : ils documentent le comportement attendu et détectent les régressions à chaque modification.
+
+### Ce qu'il faut faire
+
+- Installer **PHPUnit** (via Composer — d'où l'intérêt d'avoir fait le point 6 avant).
+- Un dossier `tests/`, une classe de test par classe métier importante (`SquareTest`, `PropertyTest`, `BoardTest`, `GameTest`…).
+- Convertissez vos scénarios de scratchpad en vrais tests : loyer selon le niveau de construction, loyer doublé du monopole nu, comptage des gares, cycle de la carte de prison, hypothèque, faillite, échange, etc.
+
+Conseil : privilégiez des tests **déterministes**. Pour ce qui dépend du hasard (dés, tirage de cartes), injectez ou fixez la source d'aléa, ou testez les méthodes de calcul isolément (comme `Property::getRent()`), plutôt qu'une partie entière.
+
+### Attendu
+
+- ✅ une suite PHPUnit qui passe (`vendor/bin/phpunit`) ;
+- ✅ au moins les mécaniques clés des TP2/TP3 couvertes ;
+- ✅ des tests déterministes, indépendants du hasard.
 
 ---
 
