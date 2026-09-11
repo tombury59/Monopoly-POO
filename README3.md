@@ -32,8 +32,9 @@ monopoly/
     ├── Game.php                      (modifié)
     ├── Contract/
     │   └── GameObserver.php          (nouveau)
-    ├── GameEvent.php                 (nouveau)
+    ├── GameEvent.php                 (nouveau — un fait : type + context)
     ├── Enum/
+    │   ├── GameEventType.php         (nouveau — catalogue des événements)
     │   ├── TurnPhase.php             (nouveau — phases d'un tour)
     │   └── PlayerAction.php          (nouveau — actions proposables)
     ├── Config/
@@ -80,11 +81,35 @@ Aujourd'hui, `Game::playTurn()` (achat, prison, cartes, faillite…) modifie l'�
 
 C'est aussi la **porte d'entrée vers un vrai projet** : le jour où vous branchez un front, il vous suffira d'écrire un nouvel observateur, sans toucher au moteur.
 
+### Le principe directeur : l'événement porte des *faits*, pas du *texte*
+
+Une décision de conception structure tout le reste : **un `GameEvent` ne contient aucune phrase**. Il porte seulement *ce qui s'est passé* — un **type** et un **context** (les données brutes). La mise en mots (« Bob paie 50 de loyer à Alice ») est de la **présentation** : c'est le travail de l'**observateur**, pas du moteur.
+
+Pourquoi ? Parce qu'un même événement peut être rendu de dix façons : une console française, un front web anglais, un observateur qui écrit du JSON et se fiche du texte. Si la phrase était figée dans l'événement (ou pire, dans le moteur), on serait coincé. En ne transportant que les faits, chaque observateur formate à sa guise. C'est l'esprit même de l'Observer : le moteur **rapporte**, il ne **raconte** pas.
+
 ### Ce qui est imposé
 
-Un **Observer** : `Game` (le *sujet*) notifie une liste d'observateurs à chaque événement notable, sans savoir ce qu'ils en font.
+**1. Un catalogue d'événements typé** — plutôt que des chaînes en dur (`'passed_go'`, fragiles et sans autocomplétion), un **enum adossé à une string** :
 
-Fichier :
+```
+src/Enum/GameEventType.php
+```
+
+```php
+enum GameEventType: string
+{
+    case PASSED_GO      = 'passed_go';
+    case RENT_PAID      = 'rent_paid';
+    case TILE_PURCHASED = 'tile_purchased';
+    case CARD_DRAWN     = 'card_drawn';
+    case PLAYER_BANKRUPT = 'player_bankrupt';
+    // ... un case par événement notable (voir la liste plus bas)
+}
+```
+
+Vous gagnez l'autocomplétion, la vérification à la compilation, et une liste centralisée. La `->value` (la string) reste disponible pour l'affichage ou de futurs logs.
+
+**2. Le contrat observateur** :
 
 ```
 src/Contract/GameObserver.php
@@ -94,24 +119,22 @@ src/Contract/GameObserver.php
 public function onEvent(GameEvent $event): void;
 ```
 
-Fichier :
+**3. L'événement — type + context, sans message** :
 
 ```
 src/GameEvent.php
 ```
 
 ```php
-private string $type;
-private string $message;
+private GameEventType $type;
 private array $context;
 
-public function __construct(string $type, string $message, array $context = [])
-public function getType(): string
-public function getMessage(): string
+public function __construct(GameEventType $type, array $context = [])
+public function getType(): GameEventType
 public function getContext(): array
 ```
 
-`$type` catégorise l'événement sans que l'observateur ait à parser le message (`"passed_go"`, `"rent_paid"`, `"card_drawn"`, `"bankruptcy"`…). `$context` porte les données structurées utiles à un affichage riche (montant, nom de joueur, nom de case…), sans obliger à tout reconstruire depuis le texte.
+`$context` porte les données structurées de l'événement (`['player' => 'Bob', 'amount' => 50, 'tile' => 'Rue de la Paix']`). L'observateur y puise ce dont il a besoin.
 
 ### Modifications sur `Game`
 
@@ -121,31 +144,58 @@ private array $observers = [];
 public function addObserver(GameObserver $observer): void
 public function removeObserver(GameObserver $observer): void
 private function notify(GameEvent $event): void
+public function emit(GameEventType $type, array $context = []): void
 ```
 
-`notify()` parcourt `$this->observers` et appelle `onEvent()` sur chacun. C'est la **seule** méthode de `Game` qui connaît ce détail — partout ailleurs, le code appelle `$this->notify(new GameEvent(...))` aux endroits pertinents, sans jamais boucler lui-même sur `$this->observers`.
+- `notify()` (privé) parcourt `$this->observers` et appelle `onEvent()` sur chacun. C'est la **seule** méthode qui connaît la boucle — aucun `if` sur le type d'observateur.
+- `emit()` (public) est le point d'entrée pratique : il construit le `GameEvent` et le passe à `notify()`. Partout dans le code, on écrit `$this->emit(GameEventType::XXX, [...])` — court, uniforme, et `Game` garde le contrôle de la construction de l'événement.
+- **`emit()` est public exprès** : les **cases** (`Tax`, `Property`, `GoToJail`…) ne sont pas dans `Game` mais reçoivent `$game` en paramètre de `applyEffect()`. Elles émettent via `$game->emit(...)` sans jamais toucher à `GameEvent` ni aux observateurs.
 
-### Un observateur console pour commencer
+### Un observateur console — c'est lui qui porte le texte
 
 ```
 src/Observer/ConsoleGameObserver.php
 ```
+
+Puisque l'événement n'a pas de message, l'observateur **compose** la phrase à partir du type et du context, via un `match` :
 
 ```php
 class ConsoleGameObserver implements GameObserver
 {
     public function onEvent(GameEvent $event): void
     {
-        echo "[{$event->getType()}] {$event->getMessage()}" . PHP_EOL;
+        echo '[' . $event->getType()->value . '] ' . $this->format($event) . PHP_EOL;
+    }
+
+    private function format(GameEvent $event): string
+    {
+        $c = $event->getContext();
+        return match ($event->getType()) {
+            GameEventType::PASSED_GO      => "{$c['player']} passe par la case Départ (+{$c['amount']}).",
+            GameEventType::TILE_PURCHASED => "{$c['player']} achète {$c['tile']} pour {$c['price']}.",
+            // ... un cas par événement
+            default => '',   // filet tant que tous ne sont pas couverts
+        };
     }
 }
 ```
 
+C'est **ici, et nulle part ailleurs**, que vit le texte français. Un futur observateur web aurait son propre `format()`.
+
 Dans `index.php` : `$game->addObserver(new ConsoleGameObserver());`
+
+### La méthode de travail : chaque événement est une *paire*
+
+Brancher un événement, c'est toujours deux gestes indissociables :
+
+1. **émettre** le fait dans le moteur — `$this->emit(GameEventType::XXX, ['clé' => valeur, ...])` ;
+2. **traduire** ce fait dans le `format()` de l'observateur — `GameEventType::XXX => "phrase lisant $c['clé']"`.
+
+La règle d'or : **les clés que le `format()` lit doivent être exactement celles que l'`emit()` écrit.** Une clé oubliée = warning `Undefined array key` + phrase vide. Soyez donc discipliné sur le `context` : chaque `emit` fournit toutes les données dont sa phrase aura besoin.
 
 ### Liste des événements à couvrir
 
-Vous avez semé des `// TODO: notify` dans tout le code depuis le TP2. Reprenez-les. Au **minimum**, notifiez :
+Vous avez semé des `// TODO: notify (type)` dans tout le code depuis le TP2 — chacun indique déjà l'événement attendu. Reprenez-les : un `case` dans `GameEventType`, un `emit()` à l'emplacement, un cas dans le `format()`. Au **minimum** :
 
 **Déplacement / plateau** : `dice_rolled`, `player_moved`, `passed_go`, `landed_on_tile`
 **Argent** : `rent_paid`, `tax_paid`, `money_gained`, `money_lost`
@@ -155,18 +205,23 @@ Vous avez semé des `// TODO: notify` dans tout le code depuis le TP2. Reprenez-
 **Cartes** : `card_drawn`
 **Fin de partie** : `player_bankrupt`, `game_over`
 
-Le `$context` est indicatif, à ajuster à vos besoins.
+Le `$context` de chaque `emit` est à ajuster à ce que sa phrase (dans le `format()`) doit afficher — souvent `player`, `amount`, `tile`.
 
-### Où placer les `notify()`
+### Où placer les `emit()`
 
-Juste **après** l'action réelle — **jamais à la place**. L'Observer ne porte **aucune** logique métier (pas de calcul d'argent, pas de décision de déplacement) : il ne fait qu'informer, après coup, que quelque chose s'est produit. Vos `// TODO: notify` marquent déjà les emplacements ; remplacez-les par un appel `$this->notify(...)`.
+Juste **après** l'action réelle — **jamais à la place**. L'Observer ne porte **aucune** logique métier (pas de calcul d'argent, pas de décision de déplacement) : il ne fait qu'informer, après coup, que quelque chose s'est produit. Vos `// TODO: notify (type)` marquent déjà les emplacements ; remplacez-les par un `$this->emit(GameEventType::TYPE, [...])` (ou `$game->emit(...)` dans une case).
+
+Deux points d'attention repérés à l'usage :
+- **`turn_ended`** est émis dans le `finally` de `playTurn`, **après** `nextPlayer()` : `getCurrentPlayer()` est déjà le joueur *suivant*. Pour nommer celui qui vient de jouer, gardez la référence capturée en début de méthode.
+- Un même passage peut émettre **plusieurs** événements (la sortie de prison forcée : `jail_forced_release` **et** `jail_paid`).
 
 ### Attendu
 
 - ✅ `Game` ne connaît pas le détail de ce que font ses observateurs (aucun `if` sur leur type dans `notify()`) ;
+- ✅ l'événement ne transporte **aucune phrase** : type + context uniquement, le texte vit dans l'observateur ;
 - ✅ au moins : déplacement, passage par Départ, loyer payé, achat, faillite sont notifiés ;
 - ✅ un `ConsoleGameObserver` fonctionnel, remplaçable par un futur observateur front sans toucher à `Game` ;
-- ✅ plus aucun `// TODO: notify` orphelin dans le code.
+- ✅ plus aucun `// TODO: notify` orphelin, et chaque `emit` a son cas dans le `format()` (pas de clé de context manquante).
 
 ---
 

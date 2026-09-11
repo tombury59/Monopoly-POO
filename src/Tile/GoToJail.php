@@ -16,6 +16,6 @@ class GoToJail extends Tile {
 
         $player->setInJail(true);
         $player->setPosition($jailTile->getPosition());
-        // TODO: notify (sent_to_jail)
+        $game->emit(GameEventType::SENT_TO_JAIL, ['player' => $player->getName()]);
     }
 }

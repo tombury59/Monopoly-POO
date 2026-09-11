@@ -65,8 +65,10 @@ class Property extends Tile implements Mortgageable{
             }
 
             $player->removeMoney($amount);
-            $this->getOwner()->addMoney($amount);
-            // TODO: notify (rent_paid)
+            $owner=$this->getOwner();
+            $owner->addMoney($amount);
+            
+            $game->emit(GameEventType::RENT_PAID, ['player' => $player->getName(), 'amount' => $amount, 'tile' => $this->getName(), 'owner' => $owner->getName()]);
         }
     }
 

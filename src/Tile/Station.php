@@ -38,8 +38,11 @@ class Station extends Tile implements Mortgageable {
             $nb = $game->getBoard()->countOwnedByType($this->getOwner(), TileType::STATION,true);
             $topay = 25 * (2 ** ($nb - 1));
             $player->removeMoney($topay);
-            $this->getOwner()->addMoney($topay);
-            // TODO: notify (rent_paid)
+
+            $owner = $this->getOwner();
+            $owner->addMoney($topay);
+
+            $game->emit(GameEventType::RENT_PAID, ['player' => $player->getName(), 'amount' => $topay, 'tile' => $this->getName(), 'owner' => $owner->getName()]);
         }
     }
 

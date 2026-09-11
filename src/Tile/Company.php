@@ -55,7 +55,7 @@ class Company extends Tile implements Mortgageable{
         $player->removeMoney($toPay);
         $owner->addMoney($toPay);
 
-        // TODO: notify (rent_paid)
+        $game->emit(GameEventType::RENT_PAID, ['player' => $player->getName(), 'amount' => $toPay, 'tile' => $this->getName(), 'owner' => $owner->getName()]);
     }
 
     public function isMortgaged(): bool {

@@ -20,7 +20,7 @@ class Card{
     public function apply(Player $player, Game $game): void {
         match ($this->effectType) {
             CardEffectType::GAIN_MONEY => $player->addMoney($this->value),
-            CardEffectType::LOSE_MONEY => $player->removeMoney($this->value),
+            CardEffectType::LOSE_MONEY => $this->loseMoney($player, $game),
             CardEffectType::MOVE_TO => $this->moveTo($player, $game, $this->value),
             CardEffectType::MOVE_STEPS => $this->moveSteps($player,$game),
             CardEffectType::GO_TO_JAIL =>$this->goToJail($player,$game),
@@ -85,6 +85,11 @@ class Card{
         $player->addGetOutOfJailCard();
     }
     
+    private function loseMoney(Player $player, Game $game): void {
+        $player->removeMoney($this->value);
+        $game->emit(GameEventType::MONEY_LOST, ['player' => $player->getName(), 'amount' => $this->value]);
+    }
+
     private function repairBuildings(Player $player, Game $game): void {
         $nbHotels=0;
         $nbHouse=0;
@@ -103,7 +108,9 @@ class Card{
                 }
             }
         }
-        $player->removeMoney($nbHouse * $this->value + $nbHotels * $this->hotelValue);
+        $total = $nbHouse * $this->value + $nbHotels * $this->hotelValue;
+        $player->removeMoney($total);
+        $game->emit(GameEventType::MONEY_LOST, ['player' => $player->getName(), 'amount' => $total]);
     }
 
     private function moveToNearest(Player $player, Game $game, TileType $type): void {

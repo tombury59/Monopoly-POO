@@ -11,8 +11,12 @@ class Chance extends Tile {
     }
 
     protected function applyEffect(Player $player, Game $game): void {
-        $this->cards[array_rand($this->cards)]->apply($player, $game);
-        // TODO: notify (card_drawn)
+        $card = $this->cards[array_rand($this->cards)];
+        $game->emit(GameEventType::CHANCE_CARD_DRAWN, [
+            'player' => $player->getName(),
+            'card'   => $card->getDescription(),
+        ]);
+        $card->apply($player, $game);
     }
 
     // Source (Chance cards, US, classique 2008-2021) :

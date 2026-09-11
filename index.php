@@ -1,5 +1,9 @@
 <?php
 
+require_once __DIR__ . '/src/Enum/GameEventType.php';
+require_once __DIR__ . '/src/GameEvent.php';
+require_once __DIR__ . '/src/Contract/GameObserver.php';
+require_once __DIR__ . '/src/Observer/ConsoleGameObserver.php';
 require_once __DIR__ . '/src/Contract/Renderable.php';
 require_once __DIR__ . '/src/Contract/Mortgageable.php';
 require_once __DIR__ . '/src/Enum/TileType.php';
@@ -40,6 +44,7 @@ function ligne(string $titre = ''): void
 }
 
 $game = new Game(['Alice', 'Bob']);
+$game->addObserver(new ConsoleGameObserver());
 $game->start();
 
 ligne('PLATEAU');

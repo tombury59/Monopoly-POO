@@ -16,6 +16,6 @@ class Tax extends Tile {
 
     protected function applyEffect(Player $player, Game $game): void {
         $player->removeMoney($this->getAmount());
-        // TODO: notify (tax_paid)
+        $game->emit(GameEventType::TAX_PAID, ['player' => $player->getName(), 'amount' => $this->getAmount()]);
     }
 }

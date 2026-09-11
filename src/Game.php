@@ -3,10 +3,14 @@
 class Game {
     private Board $board;
     private array $players = [];
+
     private int $currentPlayerIndex = 0;
+
     private Dice $dice;
     private TileFactory $tileFactory;
+
     private int $lastDiceTotal = 0;
+    private array $observers = [];
 
     public const JAIL_BAIL = 50;
 
@@ -39,7 +43,9 @@ class Game {
         $this->lastDiceTotal=array_sum($dice);
 
         if ($dice[0] === $dice[1]) {
-            // TODO: notify (jail_escaped_by_double)
+
+            $this->emit(GameEventType::JAIL_ESCAPED_BY_DOUBLE, ['player' => $playingPlayer->getName()]);
+
             $playingPlayer->setInJail(false);
             $playingPlayer->resetTurnsInJail();
 
@@ -61,7 +67,10 @@ class Game {
                 $playingPlayer->removeMoney(self::JAIL_BAIL);
                 $playingPlayer->setInJail(false);
                 $playingPlayer->resetTurnsInJail();
-                // TODO: notify (jail_forced_release + jail_paid)
+
+                $this->emit(GameEventType::JAIL_FORCED_RELEASE, ['player' => $playingPlayer->getName()]);
+                $this->emit(GameEventType::JAIL_PAID, ['player' => $playingPlayer->getName(), 'amount' => self::JAIL_BAIL]);
+
                 $this->resolveMovement($playingPlayer, array_sum($dice));
             } catch (InsufficientFundsException $e) {
                 $this->declareBankruptcy($playingPlayer);
@@ -72,7 +81,8 @@ class Game {
             return;
         }
 
-        // TODO: notify (jail_turn_skipped)
+        $this->emit(GameEventType::JAIL_TURN_SKIPPED, ['player' => $playingPlayer->getName()]);
+
         $this->nextPlayer();
     }
 
@@ -93,7 +103,9 @@ class Game {
 
         $playingPlayer->setInJail(false);
         $playingPlayer->resetTurnsInJail();
-        // TODO: notify (jail_paid)
+
+        $this->emit(GameEventType::JAIL_PAID, ['player' => $playingPlayer->getName(), 'amount' => self::JAIL_BAIL]);
+
         $this->playTurn();
     }
 
@@ -110,7 +122,8 @@ class Game {
 
         $playingPlayer->useGetOutOfJailCard();
 
-        // TODO: notify (jail_card_used)
+        $this->emit(GameEventType::JAIL_CARD_USED, ['player' => $playingPlayer->getName()]);
+
         $playingPlayer->setInJail(false);
         $playingPlayer->resetTurnsInJail();
 
@@ -124,20 +137,21 @@ class Game {
             $this->playJailedTurn();
             return;
         }
+        $this->emit(GameEventType::TURN_STARTED, ['player' => $playingPlayer->getName()]);
 
         try {
             $doublesCount = 0;
 
             do {
                 $dice = $this->dice->rollTwo();
-                // TODO: notify (dice_rolled)
+                $this->emit(GameEventType::DICE_ROLLED, ['dice1' => $dice[0], 'dice2' => $dice[1]]);
 
                 $isDouble = $dice[0] === $dice[1];
                 $step = $this->lastDiceTotal = array_sum($dice);
 
                 if ($isDouble) {
                     $doublesCount++;
-                    // TODO: notify (double_rolled)
+                    $this->emit(GameEventType::DOUBLE_ROLLED);
                 }
 
                 if ($doublesCount === 3) {
@@ -146,7 +160,7 @@ class Game {
                         throw new MonopolyException("Aucune case GoToJail trouvée sur le plateau.");
                     }
                     $goToJailTile->landOn($playingPlayer, $this);
-                    // TODO: notify (three_doubles)
+                    $this->emit(GameEventType::THREE_DOUBLES);
                     break;
                 }
 
@@ -161,7 +175,7 @@ class Game {
             $this->declareBankruptcy($playingPlayer);
         } finally {
             $this->nextPlayer();
-            // TODO: notify (turn_ended)
+            $this->emit(GameEventType::TURN_ENDED, ['player' => $playingPlayer->getName()]);
         }
     }
 
@@ -172,19 +186,20 @@ class Game {
         // Go::applyEffect() applies and adds another +200
         if (($actualPosition->getIndex() + $step) >= $this->board->getBoardSize()) {
             $player->addMoney(200);
-            // TODO: notify (passed_go)
+            $this->emit(GameEventType::PASSED_GO, ['player' => $player->getName(),'amount' => 200]);
         }
 
         $squareToLand = $actualPosition->next($step);
         $player->setPosition($squareToLand);
-        // TODO: notify (player_moved)
+        $this->emit(GameEventType::PLAYER_MOVED, ['player' => $player->getName(),'position' => $squareToLand->toKey()]);
+        
 
         $tile = $this->board->getTileAt($squareToLand);
         if ($tile === null) {
             throw new MonopolyException("Aucune case trouvée à la position {$squareToLand->toKey()}.");
         }
 
-        // TODO: notify (landed_on_tile)
+        $this->emit(GameEventType::LANDED_ON_TILE, ['player' => $player->getName(), 'tile' => $tile->getName()]);
         $tile->landOn($player, $this);
     }
 
@@ -200,7 +215,7 @@ class Game {
             }
             $player->removeMoney($tile->getPrice());
             $tile->setOwner($player);
-            // TODO: notify (tile_purchased)
+            $this->emit(GameEventType::TILE_PURCHASED, ['player' => $player->getName(),'tile' => $tile->getName(),'price' => $tile->getPrice()]);
         }
     }
 
@@ -279,7 +294,8 @@ class Game {
         }
         $owner->removeMoney($property->getHousePrice());
         $property->setBuildLevel($property->getBuildLevel() + 1);
-        // TODO: notify (house_built / hotel_built selon le niveau atteint)
+        if($property->getBuildLevel() === 5) $this->emit(GameEventType::HOTEL_BUILT, ['player' => $owner->getName(), 'tile' => $property->getName()]);
+        else $this->emit(GameEventType::HOUSE_BUILT, ['player' => $owner->getName(), 'tile' => $property->getName()]);
     }
 
     public function sellHouse(Property $property): void {
@@ -292,7 +308,7 @@ class Game {
         }
         $owner->addMoney(intdiv($property->getHousePrice(), 2));
         $property->setBuildLevel($property->getBuildLevel() - 1);
-        // TODO: notify (house_sold)
+        $this->emit(GameEventType::HOUSE_SOLD, ['player' => $owner->getName(), 'tile' => $property->getName(), 'price' => intdiv($property->getHousePrice(), 2)]);
     }
 
     public function getLastDiceTotal(): int {
@@ -310,7 +326,7 @@ class Game {
         }
         $owner->addMoney(intdiv($tile->getPrice(), 2));
         $tile->setMortgaged(true);
-        // TODO: notify (tile_mortgaged)
+        $this->emit(GameEventType::TILE_MORTGAGED, ['player' => $owner->getName(), 'tile' => $tile->getName()]);
     }
 
     public function unmortgage(Mortgageable $tile): void {
@@ -326,7 +342,7 @@ class Game {
         $cost = $value + intdiv($value, 10);
         $owner->removeMoney($cost);
         $tile->setMortgaged(false);
-        // TODO: notify (tile_unmortgaged)
+        $this->emit(GameEventType::TILE_UNMORTGAGED, ['player' => $owner->getName(), 'tile' => $tile->getName()]);
     }
 
     private function releaseAssets(Player $player): void {
@@ -353,10 +369,10 @@ class Game {
     }
 
     public function declareBankruptcy(Player $player): void {
-        // TODO: notify (player_bankrupt)
+        $this->emit(GameEventType::PLAYER_BANKRUPT, ['player' => $player->getName()]);
         $this->releaseAssets($player);
         $this->removePlayer($player);
-        // TODO: notify (game_over) si isGameOver() est vrai après le retrait
+        if($this->isGameOver()) $this->emit(GameEventType::GAME_OVER);
     }
 
 
@@ -367,4 +383,26 @@ class Game {
     public function getWinner(): ?Player {
         return $this->isGameOver() ? $this->players[0] : null;
     }
+
+    public function addObserver(GameObserver $observer): void {
+        $this->observers[]=$observer;
+    }
+
+    public function removeObserver(GameObserver $observer): void {
+        $index = array_search($observer, $this->observers, true);
+        if ($index !== false) {
+            unset($this->observers[$index]);
+        }
+    }
+
+    private function notify(GameEvent $event): void {
+        foreach($this->observers as $observer){
+            $observer->onEvent($event);
+        }
+    }
+
+    public function emit(GameEventType $type, array $context = []): void {
+        $this->notify(new GameEvent($type, $context));
+    }
+
 }

@@ -9,6 +9,6 @@ class Go extends Tile {
 
     protected function applyEffect(Player $player, Game $game): void {
         $player->addMoney(200);
-        // TODO: notify (money_gained)
+        $game->emit(GameEventType::MONEY_GAINED, ['player' => $player->getName(), 'amount' => 200]);
     }
 }
