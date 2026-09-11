@@ -465,6 +465,8 @@ C'est volontairement au point 7, et non au point 5, que cette interaction est tr
 
 Si un joueur ne peut pas payer une dette (`InsufficientFundsException` levée quelque part dans le flot), il est déclaré en faillite : ses biens repassent sans propriétaire (ou au créancier, à vous de choisir), et il est retiré de la partie. La partie se termine quand il ne reste qu'un seul joueur.
 
+> **Périmètre du TP2 :** la faillite est ici **immédiate** dès qu'une dette ne peut pas être payée. La règle officielle permet d'abord au joueur de se renflouer (revendre ses constructions, hypothéquer) avant de couler — mais ce choix relève d'une **décision du joueur**, donc du modèle de tour interactif traité au **TP3 (`README3.md`, section 6)**. Au TP2, on reste sur la faillite immédiate.
+
 ### Ce qu'il faut faire
 
 - Attraper `InsufficientFundsException` au bon endroit (probablement dans `Game::playTurn()` ou `Game::buyCurrentTile()`), plutôt que de la laisser remonter jusqu'à `index.php` sans traitement.

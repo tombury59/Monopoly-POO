@@ -21,7 +21,7 @@ class Company extends Tile implements Mortgageable{
         return $this->owner;
     }
 
-    public function setOwner(Player $player): void {
+    public function setOwner(?Player $player): void {
         $this->owner = $player;
     }
 

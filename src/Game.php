@@ -45,6 +45,8 @@ class Game {
 
             try {
                 $this->resolveMovement($playingPlayer, array_sum($dice));
+            } catch (InsufficientFundsException $e) {
+                $this->declareBankruptcy($playingPlayer);
             } finally {
                 $this->nextPlayer();
             }
@@ -56,11 +58,12 @@ class Game {
 
         if ($playingPlayer->getTurnsInJail() >= 3) {
             try {
-                // TODO: faillite si le joueur ne peut pas payer la caution
                 $playingPlayer->removeMoney(self::JAIL_BAIL);
                 $playingPlayer->setInJail(false);
                 $playingPlayer->resetTurnsInJail();
                 $this->resolveMovement($playingPlayer, array_sum($dice));
+            } catch (InsufficientFundsException $e) {
+                $this->declareBankruptcy($playingPlayer);
             } finally {
                 $this->nextPlayer();
             }
@@ -79,12 +82,16 @@ class Game {
             throw new InvalidPlayerActionException("Le joueur n'est pas en prison.");
         }
 
-        // TODO: notify
-        // TODO: faillite si le joueur ne peut pas payer la caution
-        $playingPlayer->removeMoney(self::JAIL_BAIL);
+        try {
+            $playingPlayer->removeMoney(self::JAIL_BAIL);
+        } catch (InsufficientFundsException $e) {
+            $this->declareBankruptcy($playingPlayer);
+            $this->nextPlayer();
+            return;
+        }
+
         $playingPlayer->setInJail(false);
         $playingPlayer->resetTurnsInJail();
-
         $this->playTurn();
     }
 
@@ -148,6 +155,8 @@ class Game {
                 }
 
             } while ($isDouble);
+        } catch (InsufficientFundsException $e) {
+            $this->declareBankruptcy($playingPlayer);
         } finally {
             $this->nextPlayer();
             // TODO: notify
@@ -312,5 +321,43 @@ class Game {
         $cost = $value + intdiv($value, 10);
         $owner->removeMoney($cost);
         $tile->setMortgaged(false);
+    }
+
+    private function releaseAssets(Player $player): void {
+        foreach ($this->board->getTiles() as $tile) {
+            if ($tile instanceof Mortgageable && $tile->getOwner() === $player) {
+                $tile->setOwner(null);
+                $tile->setMortgaged(false);
+                if($tile instanceof Property){
+                    $tile->setBuildLevel(0);
+                }
+            }
+        }
+    }
+
+    public function removePlayer(Player $player): void {
+        $index = array_search($player, $this->players, true);
+        if ($index === false) return;
+
+        array_splice($this->players, $index, 1);
+
+        if ($index <= $this->currentPlayerIndex) {
+            $this->currentPlayerIndex--;
+        }
+    }
+
+    public function declareBankruptcy(Player $player): void {
+        // TODO: notify (bankruptcy)
+        $this->releaseAssets($player);
+        $this->removePlayer($player);
+    }
+
+
+    public function isGameOver(): bool {
+        return count($this->players)<=1;
+    }
+
+    public function getWinner(): ?Player {
+        return $this->isGameOver() ? $this->players[0] : null;
     }
 }

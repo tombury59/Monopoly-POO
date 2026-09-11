@@ -58,19 +58,25 @@ class Card{
     }
 
     private function payOrReceiveAll(Player $player,Game $game,bool $playerPays): void {
-        // TODO: gestion de la faillite
         $players=$game->getPlayers();
         foreach($players as $receiver){
             if($receiver !== $player){
-                if($playerPays){
-                    $player->removeMoney($this->value);
-                    $receiver->addMoney($this->value);
+                try {
+                    if($playerPays){
+                        $player->removeMoney($this->value);
+                        $receiver->addMoney($this->value);
+                    }
+                    else{
+                        $receiver->removeMoney($this->value);
+                        $player->addMoney($this->value);
+                    }
+                } catch (InsufficientFundsException $e) {
+                    if ($playerPays) {
+                        $game->declareBankruptcy($player);
+                        return; 
+                    }
+                    $game->declareBankruptcy($receiver);
                 }
-                else{
-                    $receiver->removeMoney($this->value);
-                    $player->addMoney($this->value);
-                }
-
             }
         }
     }

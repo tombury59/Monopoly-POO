@@ -4,11 +4,12 @@
 
 Les TP1 et TP2 ont produit un **moteur de jeu complet** : plateau, cases, joueurs, règles (déplacement, prison, cartes, constructions, loyers variables, hypothèques, faillite). Ce TP ne rajoute presque aucune *règle* : il transforme ce moteur en un **produit fini**, prêt à être branché sur un vrai front et à évoluer sans se casser.
 
-Trois axes :
+Quatre axes :
 
 1. **Observable** — le moteur notifie ce qui se passe (pattern Observer), au lieu de modifier son état en silence.
 2. **Configurable** — certaines règles deviennent **activables/désactivables** (à commencer par le Parc Gratuit « jackpot »), sans toucher au cœur du jeu.
-3. **Fiabilisé** — autoloader propre, tests automatisés, et finition des cas laissés en suspens dans le TP2.
+3. **Pilotable** — le tour n'est plus un bloc « tout-en-un » : le moteur expose ses **points de décision** pour qu'un vrai front (web, CLI interactif) puisse rendre la main au joueur. C'est la marche décisive vers une application jouable.
+4. **Fiabilisé** — autoloader propre, tests automatisés, et finition des cas laissés en suspens dans le TP2.
 
 ## Prérequis
 
@@ -32,6 +33,9 @@ monopoly/
     ├── Contract/
     │   └── GameObserver.php          (nouveau)
     ├── GameEvent.php                 (nouveau)
+    ├── Enum/
+    │   ├── TurnPhase.php             (nouveau — phases d'un tour)
+    │   └── PlayerAction.php          (nouveau — actions proposables)
     ├── Config/
     │   └── GameRules.php             (nouveau — règles activables)
     ├── Observer/
@@ -50,6 +54,7 @@ monopoly/
 3. Loyers spéciaux des cartes « gare/compagnie la plus proche »
 4. Autoloader (Composer / PSR-4)
 5. Tests automatisés
+6. Modèle de tour interactif — le grand pas vers une vraie application
 
 Chaque partie est indépendante : vous pouvez vous arrêter après n'importe laquelle et avoir un projet cohérent.
 
@@ -287,6 +292,92 @@ Conseil : privilégiez des tests **déterministes**. Pour ce qui dépend du hasa
 - ✅ une suite PHPUnit qui passe (`vendor/bin/phpunit`) ;
 - ✅ au moins les mécaniques clés du TP2 couvertes ;
 - ✅ des tests déterministes, indépendants du hasard.
+
+---
+
+## 6. Modèle de tour interactif
+
+### Problème
+
+Aujourd'hui, `Game::playTurn()` fait **tout d'un coup** : il lance les dés, déplace le joueur, résout la case, et l'achat est décidé *à l'extérieur* par la boucle de démo. Ça marche pour un script automatique, mais **aucun vrai front ne fonctionne comme ça**. Sur le web, chaque clic est une requête distincte : il faut lancer les dés, **s'arrêter**, montrer au joueur « tu es sur la Rue de la Paix, veux-tu l'acheter ? », attendre sa réponse, puis reprendre. Le moteur doit donc exposer ses **points de décision** au lieu de tout enchaîner.
+
+C'est l'étape qui fait passer d'un *moteur qui joue seul* à un *moteur qu'on pilote*.
+
+### Principe : ne rien casser, ajouter une couche
+
+`playTurn()` (imposé au TP1) **reste** : il devient la version « tour automatique » pratique pour la console et les tests. À côté, vous ajoutez une **API interactive** que `playTurn()` peut d'ailleurs réutiliser en interne. Aucune signature existante ne change.
+
+L'idée : un tour est une petite **machine à états**. À tout instant, la partie est dans une **phase**, et propose une liste d'**actions possibles** au joueur courant. Le front lit ces actions, en choisit une, l'exécute, et la phase avance.
+
+### Ce qui est imposé
+
+**Deux enums.**
+
+```
+src/Enum/TurnPhase.php
+```
+
+Les étapes d'un tour, par exemple : `AWAITING_ROLL` (on attend le lancer), `AWAITING_ACTION` (déplacement fait, case résolue, le joueur peut gérer ses biens / acheter), `TURN_OVER` (tour terminé, on peut passer au suivant). À vous d'affiner (une phase prison en amont, par exemple).
+
+```
+src/Enum/PlayerAction.php
+```
+
+Les actions qu'un joueur peut se voir proposer : `ROLL`, `BUY_TILE`, `BUILD_HOUSE`, `SELL_HOUSE`, `MORTGAGE`, `UNMORTGAGE`, `USE_JAIL_CARD`, `PAY_BAIL`, `END_TURN`… Ce sont exactement les gestes que vous avez déjà codés — vous ne réécrivez pas la logique, vous la **nommez** pour pouvoir la proposer.
+
+**Sur `Game`, l'API de pilotage :**
+
+```php
+public function getCurrentPhase(): TurnPhase
+public function getAvailableActions(): array   // liste de PlayerAction pour le joueur courant, selon la phase et l'état
+public function endTurn(): void                // clôt le tour et passe au joueur suivant
+```
+
+- `getAvailableActions()` est le cœur : elle **calcule** ce que le joueur a le droit de faire *maintenant*. En phase `AWAITING_ROLL`, ce sera `ROLL` (ou `PAY_BAIL` / `USE_JAIL_CARD` s'il est en prison). En phase `AWAITING_ACTION`, ce sera `END_TURN` + éventuellement `BUY_TILE` (si la case est achetable et libre), `BUILD_HOUSE` (s'il possède un groupe complet et a les fonds), `MORTGAGE`, etc. C'est de la **lecture d'état** : les vraies vérifications restent dans vos méthodes existantes (`buildHouse`, `mortgage`… qui continuent de lever leurs exceptions si on les appelle à tort).
+- Vos méthodes d'action existantes (`buyCurrentTile`, `buildHouse`, `mortgage`…) deviennent les « transitions » que le front déclenche. Elles doivent **faire avancer la phase** quand c'est pertinent (lancer les dés fait passer de `AWAITING_ROLL` à `AWAITING_ACTION`).
+
+### La boucle, avant / après
+
+Aujourd'hui (`index.php`, tout enchaîné) :
+
+```php
+$game->playTurn();
+try { $game->buyCurrentTile($player); } catch (MonopolyException $e) {}
+```
+
+Demain, un front (pseudo-code) — **le moteur ne décide plus, il propose** :
+
+```
+tant que la phase n'est pas TURN_OVER :
+    actions = game.getAvailableActions()
+    choix   = /* clic du joueur, ou IA, ou input console */
+    game.exécuter(choix)      // roll / buy / build / endTurn...
+```
+
+Le même moteur alimente alors une UI web, un CLI interactif **ou** un joueur automatique — chacun n'est qu'une façon différente de choisir dans `getAvailableActions()`.
+
+### Le lien avec l'Observer (point 1)
+
+Les deux se complètent : `getAvailableActions()` dit **ce que le joueur peut faire** (avant l'action), l'Observer dit **ce qui vient de se passer** (après l'action). Ensemble, ils suffisent à piloter n'importe quel front sans jamais lire l'intérieur du moteur.
+
+### Application directe : la liquidation avant faillite
+
+Au TP2, la faillite est **immédiate** dès qu'une dette dépasse les liquidités. La vraie règle laisse d'abord le joueur se renflouer : revendre ses constructions, hypothéquer ses biens, et ne couler **que** s'il ne peut toujours pas payer une fois tout liquidé. Or « que vendre, qu'hypothéquer » est précisément une **décision** — donc du ressort de ce modèle interactif.
+
+Deux niveaux, au choix :
+
+- **Liquidation interactive** — quand une dette dépasse les liquidités, le moteur entre dans une phase dédiée (`AWAITING_LIQUIDATION` par exemple) et `getAvailableActions()` ne propose que `SELL_HOUSE` / `MORTGAGE` / `DECLARE_BANKRUPTCY`, jusqu'à ce que le joueur ait réuni la somme (il paie alors et le tour reprend) ou renonce (faillite). C'est la version fidèle et la vraie démonstration de l'intérêt du modèle.
+- **Liquidation automatique** (repli plus simple) — une méthode `Game::raiseFunds(Player, int): bool` qui revend puis hypothèque *à la place* du joueur jusqu'à atteindre le montant, appelée dans le `catch` de dette avant de se résoudre à `declareBankruptcy`. Pas de décision, mais la règle « on ne coule qu'après avoir tout liquidé » est respectée.
+
+Dans les deux cas, `declareBankruptcy()` (écrit au TP2 point 8) reste le **dernier** recours, une fois la liquidation épuisée.
+
+### Attendu
+
+- ✅ `playTurn()` fonctionne toujours (rien de cassé), idéalement réécrit pour s'appuyer sur la nouvelle API ;
+- ✅ `getCurrentPhase()` / `getAvailableActions()` / `endTurn()` sur `Game` ;
+- ✅ `getAvailableActions()` ne propose que des actions réellement légales dans l'état courant ;
+- ✅ aucune logique de règle dupliquée : `getAvailableActions()` lit l'état, les méthodes d'action gardent leurs vérifications ;
+- ✅ une petite boucle interactive (même en console, avec `readline()`) démontrant qu'on pilote une partie coup par coup.
 
 ---
 
