@@ -30,7 +30,6 @@ class CommunityChest extends Tile {
     // 11. Pay hospital fees of $100
     // 12. Pay school fees of $50
     // 13. Receive $25 consultancy fee
-    // TODO: nouveau type
     // 14. You are assessed for street repair. $40 per house. $115 per hotel
     // 15. You have won second prize in a beauty contest. Collect $10
     // 16. You inherit $100

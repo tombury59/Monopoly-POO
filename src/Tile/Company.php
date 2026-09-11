@@ -1,9 +1,11 @@
 <?php
 
-class Company extends Tile {
+class Company extends Tile implements Mortgageable{
 
     private int $price;
     private ?Player $owner = null;
+
+    private bool $mortgaged = false;
 
     public function __construct(string $name, Square $position, int $price){
         parent::__construct($name,$position);
@@ -32,12 +34,12 @@ class Company extends Tile {
     }
 
     protected function applyEffect(Player $player, Game $game): void {
-        if (!$this->isOwned() || $this->getOwner() === $player) {
+        if (!$this->isOwned() || $this->getOwner() === $player || $this->isMortgaged()) {
             return;
         }
 
         $owner = $this->getOwner();
-        $nbCompany = $game->getBoard()->countOwnedByType($owner, TileType::COMPANY);
+        $nbCompany = $game->getBoard()->countOwnedByType($owner, TileType::COMPANY,true);
         $multiplier = match ($nbCompany) {
             1 => 4,
             2 => 10,
@@ -54,5 +56,13 @@ class Company extends Tile {
         $owner->addMoney($toPay);
 
         // TODO: notify
+    }
+
+    public function isMortgaged(): bool {
+        return $this->mortgaged;
+    }
+
+    public function setMortgaged(bool $mortgaged): void {
+        $this->mortgaged = $mortgaged;
     }
 }

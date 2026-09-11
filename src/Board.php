@@ -67,12 +67,15 @@ class Board {
         return true;
     }
 
-    public function countOwnedByType(Player $player, TileType $type): int {
+    public function countOwnedByType(Player $player, TileType $type, bool $excludeMortgaged = false): int {
         $ownedType=0;
         foreach($this->tiles as $tile){
-            if ($tile->getType() === $type) {
-                if($tile->getOwner() === $player){
-                    $ownedType+=1;
+            if ($tile->getType() === $type && $tile->getOwner() === $player) {
+                if($excludeMortgaged && $tile->isMortgaged()){
+                    continue;
+                }
+                else{
+                   $ownedType+=1;
                 }
             }
         }
@@ -101,5 +104,16 @@ class Board {
             }
         }
         return $maximum;
+    }
+
+    public function groupHasMortgage(ColorGroup $group): bool {
+        foreach($this->tiles as $tile){
+            if($tile instanceof Property && $tile->getColorGroup()===$group){
+                if($tile->isMortgaged()){
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

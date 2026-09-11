@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/src/Contract/Renderable.php';
+require_once __DIR__ . '/src/Contract/Mortgageable.php';
 require_once __DIR__ . '/src/Enum/TileType.php';
 require_once __DIR__ . '/src/Enum/ColorGroup.php';
 require_once __DIR__ . '/src/Enum/CardEffectType.php';

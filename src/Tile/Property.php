@@ -1,6 +1,6 @@
 <?php
 
-class Property extends Tile {
+class Property extends Tile implements Mortgageable{
     private ColorGroup $colorGroup;
     private int $price;
     private int $rent;
@@ -55,11 +55,13 @@ class Property extends Tile {
     }
 
     protected function applyEffect(Player $player, Game $game): void {
-        if($this->isOwned() && $this->getOwner() !== $player){
+        if($this->isOwned() && $this->getOwner() !== $player && !$this->isMortgaged()){
 
             $amount = $this->getRent();
-            if($this->buildLevel === 0 && $game->getBoard()->ownsWholeGroup($this->getOwner(), $this->getColorGroup())){
-                $amount *= 2;
+            if($this->buildLevel === 0
+                && $game->getBoard()->ownsWholeGroup($this->getOwner(), $this->getColorGroup())
+                && !$game->getBoard()->groupHasMortgage($this->getColorGroup())){
+                    $amount *= 2;
             }
 
             $player->removeMoney($amount);

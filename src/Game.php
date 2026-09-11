@@ -263,7 +263,9 @@ class Game {
         if ($property->getBuildLevel() > $this->board->minBuildLevelInGroup($property->getColorGroup())) {
             throw new InvalidPlayerActionException("La case n'est pas le minimum du groupe.");
         }
-        // TODO: Hypothèque
+        if ($this->board->groupHasMortgage($property->getColorGroup())) {
+            throw new InvalidPlayerActionException("Impossible de construire : une case du groupe est hypothéquée.");
+        }
         $owner->removeMoney($property->getHousePrice());
         $property->setBuildLevel($property->getBuildLevel() + 1);
     }
@@ -282,5 +284,33 @@ class Game {
 
     public function getLastDiceTotal(): int {
         return $this->lastDiceTotal;
+    }
+
+    public function mortgage(Mortgageable $tile): void {
+        if($tile->isMortgaged()) throw new InvalidPlayerActionException("La case est déjà en hypothèque.");
+        $owner=$tile->getOwner();
+        if($owner===null){
+            throw new InvalidPlayerActionException("La case n'a pas de propriétaire.");
+        }
+        if ($tile instanceof Property && $tile->getBuildLevel() > 0) {
+            throw new InvalidPlayerActionException("On n'hypothèque pas une propriété construite !");
+        }
+        $owner->addMoney(intdiv($tile->getPrice(), 2));
+        $tile->setMortgaged(true);
+    }
+
+    public function unmortgage(Mortgageable $tile): void {
+        if(!$tile->isMortgaged()) throw new InvalidPlayerActionException("La case n'est pas en hypothèque.");
+        $owner=$tile->getOwner();
+        if($owner===null){
+            throw new InvalidPlayerActionException("La case n'a pas de propriétaire.");
+        }
+        if ($tile instanceof Property && $tile->getBuildLevel() > 0) {
+            throw new InvalidPlayerActionException("On n'hypothèque pas une propriété construite !");
+        }
+        $value = intdiv($tile->getPrice(), 2);
+        $cost = $value + intdiv($value, 10);
+        $owner->removeMoney($cost);
+        $tile->setMortgaged(false);
     }
 }

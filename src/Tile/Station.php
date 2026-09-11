@@ -1,9 +1,11 @@
 <?php
 
-class Station extends Tile {
+class Station extends Tile implements Mortgageable {
 
     private int $price;
     private ?Player $owner = null;
+
+    private bool $mortgaged = false;
 
     public function __construct(string $name, Square $position, int $price){
         parent::__construct($name,$position);
@@ -31,13 +33,21 @@ class Station extends Tile {
         return true;
     }
 
-        protected function applyEffect(Player $player, Game $game): void {
-            if($this->isOwned() && $this->getOwner() !== $player){
-                $nb = $game->getBoard()->countOwnedByType($this->getOwner(), TileType::STATION);
-                $topay = 25 * (2 ** ($nb - 1));
-                $player->removeMoney($topay);
-                $this->getOwner()->addMoney($topay);
-                // TODO: notify
-            }
+    protected function applyEffect(Player $player, Game $game): void {
+        if($this->isOwned() && $this->getOwner() !== $player && !$this->isMortgaged()){
+            $nb = $game->getBoard()->countOwnedByType($this->getOwner(), TileType::STATION,true);
+            $topay = 25 * (2 ** ($nb - 1));
+            $player->removeMoney($topay);
+            $this->getOwner()->addMoney($topay);
+            // TODO: notify
         }
+    }
+
+    public function isMortgaged(): bool {
+        return $this->mortgaged;
+    }
+
+    public function setMortgaged(bool $mortgaged): void {
+        $this->mortgaged = $mortgaged;
+    }
 }
