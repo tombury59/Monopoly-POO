@@ -6,7 +6,6 @@ abstract class Tile implements Renderable{
     protected Square $position;
     protected TileType $type;
 
-
     public function __construct(string $name, Square $position) {
         $this->name=$name;
         $this->position=$position;
@@ -26,8 +25,7 @@ abstract class Tile implements Renderable{
     
     /* render() must return a short representation of the tile,
     used for the render method in Board*/
-    public function render(): string
-    {
+    public function render(): string {
         return match ($this->type) {
             TileType::GO => 'GO',
             TileType::JAIL => 'JAIL',

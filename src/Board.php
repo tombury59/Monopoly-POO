@@ -78,4 +78,28 @@ class Board {
         }
         return $ownedType;
     }
+
+    public function minBuildLevelInGroup(ColorGroup $group): int {
+        $minimum=10;
+        foreach($this->tiles as $tile){
+            if($tile instanceof Property && $tile->getColorGroup()===$group){
+                if($tile->getBuildLevel()<$minimum){
+                    $minimum=$tile->getBuildLevel();
+                }
+            }
+        }
+        return $minimum;
+    }
+
+    public function maxBuildLevelInGroup(ColorGroup $group): int {
+        $maximum=0;
+        foreach($this->tiles as $tile){
+            if($tile instanceof Property && $tile->getColorGroup()===$group){
+                if($tile->getBuildLevel()>$maximum){
+                    $maximum=$tile->getBuildLevel();
+                }
+            }
+        }
+        return $maximum;
+    }
 }

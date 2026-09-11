@@ -259,9 +259,25 @@ class Game {
             throw new InvalidPlayerActionException("Le propriétaire ne possède pas tout le groupe.");
         }
         if($property->getBuildLevel() === 5) throw new InvalidPlayerActionException("Hôtel déjà présent.");
+
+        if ($property->getBuildLevel() > $this->board->minBuildLevelInGroup($property->getColorGroup())) {
+            throw new InvalidPlayerActionException("La case n'est pas le minimum du groupe.");
+        }
         // TODO: Hypothèque
         $owner->removeMoney($property->getHousePrice());
         $property->setBuildLevel($property->getBuildLevel() + 1);
+    }
+
+    public function sellHouse(Property $property): void {
+        $owner = $property->getOwner();
+        if($owner === null || !$this->board->ownsWholeGroup($owner, $property->getColorGroup())) throw new InvalidPlayerActionException("Le propriétaire ne possède pas tout le groupe.");
+        if($property->getBuildLevel() === 0) throw new InvalidPlayerActionException("Aucune construction à revendre.");
+
+        if($property->getBuildLevel() < $this->board->maxBuildLevelInGroup($property->getColorGroup())) {
+            throw new InvalidPlayerActionException("La case n'est pas le maximum du groupe.");
+        }
+        $owner->addMoney(intdiv($property->getHousePrice(), 2));
+        $property->setBuildLevel($property->getBuildLevel() - 1);
     }
 
     public function getLastDiceTotal(): int {

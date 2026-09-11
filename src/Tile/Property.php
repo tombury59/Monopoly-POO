@@ -10,6 +10,8 @@ class Property extends Tile {
     private array $rents = [];
     private int $housePrice = 0;
 
+    private bool $mortgaged = false;
+
     public function __construct(string $name, Square $position, ColorGroup $colorGroup, int $price, int $rent,array $rents = [], int $housePrice = 0){
         parent::__construct($name,$position);
         $this->type = TileType::PROPERTY;
@@ -79,5 +81,13 @@ class Property extends Tile {
 
     public function getHousePrice(): int {
         return $this->housePrice;
+    }
+
+    public function isMortgaged(): bool {
+        return $this->mortgaged;
+    }
+
+    public function setMortgaged(bool $mortgaged): void {
+        $this->mortgaged = $mortgaged;
     }
 }

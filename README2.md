@@ -354,15 +354,28 @@ Elle doit, **dans cet ordre** :
 
 1. lever `InvalidPlayerActionException` si le propriétaire de la case ne possède pas tout le groupe (via `Board::ownsWholeGroup()`) ;
 2. lever `InvalidPlayerActionException` si `getBuildLevel()` vaut déjà 5 (plafond hôtel atteint) ;
-3. // TODO (point 7) : refuser si une propriété du groupe est hypothéquée ;
-4. débiter le coût de construction au propriétaire via `Player::removeMoney()`, en utilisant `$property->getHousePrice()` (le prix officiel de la maison, issu de la grille 5.2) ;
-5. incrémenter le niveau via `setBuildLevel(getBuildLevel() + 1)`.
+3. lever `InvalidPlayerActionException` si la **construction uniforme** n'est pas respectée : on ne peut construire sur une case que si son niveau est le **minimum** du groupe (voir 5.6) ;
+4. // TODO (point 7) : refuser si une propriété du groupe est hypothéquée ;
+5. débiter le coût de construction au propriétaire via `Player::removeMoney()`, en utilisant `$property->getHousePrice()` (le prix officiel de la maison, issu de la grille 5.2) ;
+6. incrémenter le niveau via `setBuildLevel(getBuildLevel() + 1)`.
+
+### 5.6 — `Game` : revendre et construction uniforme
+
+**Revente à la banque.** Une construction peut être revendue à la banque à **la moitié** de son prix d'achat. C'est la seule façon de « défaire » une construction, et un préalable obligatoire à l'hypothèque (point 7). Méthode symétrique de `buildHouse` :
+
+```php
+public function sellHouse(Property $property): void
+```
+
+Elle doit : refuser (`InvalidPlayerActionException`) si `getBuildLevel()` vaut 0 (rien à revendre) ; refuser si la construction uniforme n'est pas respectée (on ne revend que sur une case dont le niveau est le **maximum** du groupe) ; créditer le propriétaire de `intdiv($property->getHousePrice(), 2)` ; décrémenter le niveau.
+
+**Construction uniforme (*even build*).** Règle officielle : dans un groupe, l'écart de niveau entre deux cases ne doit jamais dépasser 1. On construit donc toujours sur la case la **plus basse** du groupe, et on revend sur la plus **haute**. Prévoyez le moyen de connaître le niveau min et max d'un groupe (par exemple `Board::minBuildLevelInGroup(ColorGroup)` / `maxBuildLevelInGroup(ColorGroup)`, ou une méthode renvoyant les deux).
 
 ### Ce que vous ne devez pas faire
 
 - pas de parcours du plateau dupliqué : la recherche « groupe complet » n'existe qu'à **un** endroit (`Board::ownsWholeGroup()`) ;
 - pas de gros `if/else` sur le type de case ajouté dans `Game` — le loyer reste géré par le polymorphisme de `Property::applyEffect()` ;
-- pas de règle de **construction uniforme** (répartition équitable), pas d'inventaire de banque : hors périmètre, ce sont des bonus facultatifs.
+- pas d'inventaire de banque (nombre limité de maisons/hôtels disponibles) : hors périmètre.
 
 ### Attendu
 
@@ -370,6 +383,8 @@ Elle doit, **dans cet ordre** :
 - ✅ grille de loyers officielle (`rents` à 6 valeurs) + `housePrice` transmis via `setupBoard → TileFactory → Property`, `getRent()` lisant `rents[buildLevel]` ;
 - ✅ `Board::ownsWholeGroup()` avec la signature exacte ci-dessus ;
 - ✅ `Game::buildHouse()` respectant l'ordre des vérifications ci-dessus ;
+- ✅ `Game::sellHouse()` : revente d'une construction à la moitié du prix (`intdiv`) ;
+- ✅ construction uniforme respectée : on construit sur la case la plus basse du groupe, on revend sur la plus haute ;
 - ✅ impossible de construire sans posséder tout le groupe ;
 - ✅ le loyer appliqué dans `Property::applyEffect()` reflète le niveau de construction ;
 - ✅ un groupe complet sans construction fait payer **le double** du loyer de base ; dès qu'une maison est posée, c'est le barème de construction qui s'applique (pas le double).
