@@ -187,7 +187,7 @@ case RECEIVE_ALL;          // value = montant reçu de chaque autre joueur
 
 `Card::apply()` doit utiliser un `match` sur `$this->effectType` pour appliquer le bon effet — même principe de Template Method/Strategy que dans `Tile`.
 
-> **Cas avancés reportés.** `REPAIR_BUILDINGS` (payer un montant par maison/hôtel possédé) dépend du niveau de construction sur `Property` (point 5) — à compléter une fois le point 5 fait. Les cartes « avancer jusqu'à la gare / la compagnie la plus proche » demandent une recherche « case la plus proche dans le sens de la marche », plus complexe que `Board::findTileByType()` (qui retourne la première case d'un type, sans notion de distance). Pour ces dernières, préférez **deux cases distinctes** — `NEAREST_STATION` et `NEAREST_UTILITY` — plutôt qu'un unique `NEAREST_UTILITY_OR_RAILROAD` ambigu : chaque carte dit clairement sa destination, et le handler n'a pas à décoder un `$value`. Elles s'appuient sur une nouvelle méthode `Board::findNearestByType(Square $from, TileType $type): ?Square` (parcours par distance croissante depuis `$from`), puis réutilisent le mécanisme de `MOVE_TO` (calcul des pas + `resolveMovement`, qui gère déjà le +200 en passant Départ). Simplification assumée : la carte se contente d'avancer le joueur ; le loyer spécial (« double » pour une gare, « 10× les dés » pour une compagnie) relève du point 6 et reste optionnel.
+> **Cas avancés reportés.** `REPAIR_BUILDINGS` (payer un montant par maison/hôtel possédé) dépend du niveau de construction sur `Property` (point 5) — à compléter une fois le point 5 fait. Les cartes « avancer jusqu'à la gare / la compagnie la plus proche » demandent une recherche « case la plus proche dans le sens de la marche », plus complexe que `Board::findTileByType()` (qui retourne la première case d'un type, sans notion de distance). Pour ces dernières, préférez **deux cases distinctes** — `NEAREST_STATION` et `NEAREST_UTILITY` — plutôt qu'un unique `NEAREST_UTILITY_OR_RAILROAD` ambigu : chaque carte dit clairement sa destination, et le handler n'a pas à décoder un `$value`. Elles s'appuient sur une nouvelle méthode `Board::findNearestByType(Square $from, TileType $type): ?Square` (parcours par distance croissante depuis `$from`), puis réutilisent le mécanisme de `MOVE_TO` (calcul des pas + `resolveMovement`, qui gère déjà le +200 en passant Départ). Simplification assumée : la carte se contente d'avancer le joueur ; le loyer spécial (« double » pour une gare, « 10× les dés » pour une compagnie) est traité au **TP3 — Finalisation** (`README3.md`, section 3) et reste optionnel.
 
 ### Ce qui est imposé dans `Chance` et `CommunityChest`
 
@@ -378,7 +378,7 @@ Elle doit, **dans cet ordre** :
 
 Retournez dans `Card::apply()` (point 4) et complétez le cas `REPAIR_BUILDINGS` : il doit parcourir les propriétés du joueur (via `Game::getPlayers()`/une méthode dédiée si vous en créez une, ou en itérant sur `Board::getTiles()` en filtrant celles dont `getOwner() === $player`), et débiter un montant par maison et un montant (généralement plus élevé) par hôtel, selon le niveau de construction que vous venez d'ajouter à `Property`.
 
-`NEAREST_UTILITY_OR_RAILROAD` reste optionnel — ce n'est pas dans les attendus stricts du TP2, à traiter seulement si vous voulez aller plus loin.
+Les cartes « gare/compagnie la plus proche » (`NEAREST_STATION` / `NEAREST_UTILITY`) restent optionnelles au TP2 : leur simple déplacement peut être fait ici si vous le souhaitez, mais leur **loyer spécial** (double gare / 10× dés compagnie) est traité au **TP3 — Finalisation** (`README3.md`, section 3).
 
 ---
 
@@ -474,140 +474,9 @@ Le plus propre est d'attraper `InsufficientFundsException` **à l'intérieur** d
 
 ## 9. Notifications d'événements (Observer)
 
-### Problème à résoudre
+> **Déplacé vers le TP3.** Ce point a été sorti du TP2 : il constitue désormais la première partie du **TP3 — Finalisation** (`README3.md`), où le pattern Observer est implémenté en détail (`GameObserver`, `GameEvent`, `Game::notify()`, `ConsoleGameObserver`, liste des événements et emplacements des `notify()`).
 
-Aujourd'hui, `Game::playTurn()` (et bientôt `buyCurrentTile()`, la prison, les cartes...) modifie l'état du jeu silencieusement : rien ne permet à un appelant extérieur (typiquement un futur front) de savoir *ce qui s'est passé* pendant le tour — un passage par la case Départ, un loyer payé, une carte tirée, une faillite... Comparer l'état avant/après ne dit pas *pourquoi* les choses ont changé.
-
-### Ce qui est imposé
-
-Le pattern à mettre en place est un **Observer** : `Game` (le *sujet*) notifie une liste d'observateurs à chaque événement notable, sans savoir ce qu'ils en font (affichage console, futur front, logs, tests...).
-
-Fichier :
-
-```
-src/Contract/GameObserver.php
-```
-
-Méthode imposée
-
-```php
-public function onEvent(GameEvent $event): void;
-```
-
-Fichier :
-
-```
-src/GameEvent.php
-```
-
-Propriétés et méthode imposées
-
-```php
-private string $type;
-private string $message;
-private array $context;
-
-public function __construct(string $type, string $message, array $context = [])
-public function getType(): string
-public function getMessage(): string
-public function getContext(): array
-```
-
-`$type` sert à catégoriser l'événement sans que l'observateur ait à parser le message (exemples de valeurs libres : `"passed_go"`, `"rent_paid"`, `"card_drawn"`, `"bankruptcy"`). `$context` porte les données structurées utiles à un affichage riche (montant, nom de joueur, nom de case...), sans obliger à tout reconstruire depuis le texte.
-
-### Liste des événements à couvrir
-
-Établissez cette liste **maintenant**, avant même d'écrire `notify()` — elle vous sert de checklist pendant que vous codez chaque règle du TP, pour ne pas avoir à ratisser tout le code plus tard en cherchant ce qui mériterait une notification. Chaque type ci-dessous est une suggestion de valeur pour `GameEvent::$type` ; le contenu de `$context` est indicatif, à ajuster selon vos besoins réels.
-
-**Déplacement et plateau**
-- `dice_rolled` — les dés ont été lancés (`context: valeurs des deux dés, total`)
-- `player_moved` — un joueur a changé de position (`context: ancienne position, nouvelle position`)
-- `passed_go` — le joueur passe devant ou s'arrête sur la case Départ (`context: montant reçu`)
-- `landed_on_tile` — le joueur atterrit sur une case (`context: nom et type de la case`)
-
-**Argent**
-- `rent_paid` — un loyer a été payé (`context: montant, joueur payeur, propriétaire`)
-- `tax_paid` — une taxe a été payée (`context: montant`)
-- `money_gained` — gain d'argent générique (carte, bonus...) (`context: montant, raison`)
-- `money_lost` — perte d'argent générique (`context: montant, raison`)
-
-**Propriétés**
-- `tile_purchased` — un joueur achète une case (`context: nom de la case, prix, acheteur`)
-- `house_built` — une maison est construite (`context: case, nouveau niveau`)
-- `hotel_built` — un hôtel est construit (`context: case`)
-- `tile_mortgaged` — une case est hypothéquée (`context: case, montant reçu`)
-- `tile_unmortgaged` — une case est dé-hypothéquée (`context: case, montant remboursé`)
-
-**Dés et tours spéciaux**
-- `double_rolled` — un double a été fait, le joueur rejoue (`context: valeur du double`)
-- `three_doubles` — 3 doubles d'affilée, envoi direct en prison (`context: aucun ou joueur concerné`)
-- `turn_ended` — le tour du joueur courant se termine, passage au suivant (`context: joueur suivant`)
-
-**Prison**
-- `sent_to_jail` — un joueur est envoyé en prison (`context: raison — case GoToJail, 3 doubles...`)
-- `jail_turn_skipped` — le joueur reste en prison ce tour (`context: nombre de tours déjà passés`)
-- `jail_paid` — le joueur paie la caution pour sortir (`context: montant`)
-- `jail_escaped_by_double` — le joueur sort de prison grâce à un double (`context: aucun`)
-- `jail_forced_release` — sortie forcée après 3 tours (`context: montant payé`)
-
-**Cartes**
-- `card_drawn` — une carte Chance/Caisse de Communauté est tirée (`context: description de la carte, type de pioche`)
-
-**Fin de partie**
-- `player_bankrupt` — un joueur est en faillite et retiré de la partie (`context: joueur, créancier éventuel`)
-- `game_over` — la partie se termine (`context: joueur vainqueur`)
-
-Vous n'êtes pas obligé de tout implémenter d'un coup — mais en ayant cette liste sous les yeux dès maintenant, vous saurez, à chaque règle que vous codez dans les sections 1 à 7, où il faudra brancher un `notify()` plus tard, et vous pourrez même laisser un `// TODO: notify <type>` en attendant d'avoir écrit l'Observer.
-
-### Modifications sur Game
-
-```php
-private array $observers = [];
-
-public function addObserver(GameObserver $observer): void
-public function removeObserver(GameObserver $observer): void
-private function notify(GameEvent $event): void
-```
-
-`notify()` doit simplement parcourir `$this->observers` et appeler `onEvent()` sur chacun. C'est la **seule** méthode de `Game` qui doit connaître ce détail — le reste du code de `Game` (dans `playTurn()`, `buyCurrentTile()`, etc.) se contente d'appeler `$this->notify(new GameEvent(...))` aux endroits pertinents, sans jamais boucler sur `$this->observers` lui-même.
-
-### Un exemple d'observateur simple pour commencer
-
-Avant de brancher un vrai front, un observateur console suffit à valider que le mécanisme fonctionne :
-
-```
-src/Observer/ConsoleGameObserver.php
-```
-
-```php
-class ConsoleGameObserver implements GameObserver
-{
-    public function onEvent(GameEvent $event): void
-    {
-        echo "[{$event->getType()}] {$event->getMessage()}" . PHP_EOL;
-    }
-}
-```
-
-Dans `index.php` :
-
-```php
-$game->addObserver(new ConsoleGameObserver());
-```
-
-### Où placer les `notify()` dans le code existant
-
-Reprenez chacune des règles déjà codées (passage par Départ, loyer payé, achat, carte tirée, prison, faillite...) et ajoutez un appel à `$this->notify(...)` juste après l'action réelle — jamais à la place. L'Observer ne doit **jamais** porter de logique métier lui-même (pas de calcul d'argent, pas de décision de déplacement) : il ne fait qu'informer, après coup, que quelque chose s'est produit.
-
-### Attendu
-
-- ✅ `Game` ne connaît pas le détail de ce que font ses observateurs (aucun `if` sur leur type dans `notify()`) ;
-- ✅ au moins les événements suivants sont notifiés : déplacement, passage par Départ, loyer payé, achat de case, faillite ;
-- ✅ un `ConsoleGameObserver` fonctionnel, prêt à être remplacé ou complété plus tard par un vrai observateur front sans toucher à `Game`.
-
-### Pourquoi ce pattern seulement maintenant
-
-Contrairement à Factory/Template Method/Strategy (nécessaires dès le socle), l'Observer n'a de sens qu'une fois qu'il y a plusieurs règles métier réellement en place à notifier — le mettre en place trop tôt aurait ajouté de la complexité sans bénéfice visible. C'est aussi la porte d'entrée naturelle vers un vrai projet : le jour où vous branchez un front (web, CLI interactif, API), il vous suffira d'écrire un nouvel observateur, sans toucher au moteur de jeu.
+En attendant, vous pouvez continuer à semer des `// TODO: notify` aux endroits pertinents de votre code : ils vous serviront de repères quand vous brancherez l'Observer au TP3.
 
 ---
 
@@ -617,20 +486,4 @@ Contrairement à Factory/Template Method/Strategy (nécessaires dès le socle), 
 - réintroduire un gros `if/else`/`match` sur le type de case dans `Game` pour gérer les loyers ou les effets (ça doit continuer à passer par le polymorphisme de `Tile`/`applyEffect()`) ;
 - dupliquer la logique de vérification des fonds ailleurs qu'à travers `Player::removeMoney()`.
 
-## Mise à jour du README
-
-Ajoutez ces lignes à votre `readme.md` existant, à cocher selon ce que vous avez implémenté :
-
-```
-Bonus TP2
-✅ / ❌ Passage par la case Départ (200 en passant)
-✅ / ❌ Doubles aux dés (rejouer / 3e double → prison)
-✅ / ❌ Prison réelle (caution / double / forcé après 3 tours)
-✅ / ❌ Cartes Chance avec effets variés
-✅ / ❌ Cartes Caisse de Communauté avec effets variés
-✅ / ❌ Maisons / hôtels et paliers de loyer
-✅ / ❌ Hypothèques
-✅ / ❌ Faillite
-✅ / ❌ Fin de partie et désignation d'un vainqueur
-✅ / ❌ Notifications d'événements (Observer) + ConsoleGameObserver
-```
+> Les notifications d'événements (Observer) ont été déplacées vers le **TP3 — Finalisation** (`README3.md`), qui a sa propre checklist.
