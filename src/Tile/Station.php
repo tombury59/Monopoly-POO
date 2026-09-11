@@ -31,11 +31,13 @@ class Station extends Tile {
         return true;
     }
 
-    protected function applyEffect(Player $player, Game $game): void {
-        if($this->isOwned() && $this->getOwner() !== $player){
-            $player->removeMoney($this->getPrice());
-            $this->getOwner()->addMoney($this->getPrice());
-            // TODO: notify
+        protected function applyEffect(Player $player, Game $game): void {
+            if($this->isOwned() && $this->getOwner() !== $player){
+                $nb = $game->getBoard()->countOwnedByType($this->getOwner(), TileType::STATION);
+                $topay = 25 * (2 ** ($nb - 1));
+                $player->removeMoney($topay);
+                $this->getOwner()->addMoney($topay);
+                // TODO: notify
+            }
         }
-    }
 }

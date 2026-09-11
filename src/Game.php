@@ -6,6 +6,7 @@ class Game {
     private int $currentPlayerIndex = 0;
     private Dice $dice;
     private TileFactory $tileFactory;
+    private int $lastDiceTotal = 0;
 
     public const JAIL_BAIL = 50;
 
@@ -35,6 +36,7 @@ class Game {
         $playingPlayer = $this->getCurrentPlayer();
 
         $dice = $this->dice->rollTwo();
+        $this->lastDiceTotal=array_sum($dice);
 
         if ($dice[0] === $dice[1]) {
             // TODO: notify
@@ -122,7 +124,7 @@ class Game {
                 // TODO: notify
 
                 $isDouble = $dice[0] === $dice[1];
-                $step = array_sum($dice);
+                $step = $this->lastDiceTotal = array_sum($dice);
 
                 if ($isDouble) {
                     $doublesCount++;
@@ -260,5 +262,9 @@ class Game {
         // TODO: Hypothèque
         $owner->removeMoney($property->getHousePrice());
         $property->setBuildLevel($property->getBuildLevel() + 1);
+    }
+
+    public function getLastDiceTotal(): int {
+        return $this->lastDiceTotal;
     }
 }

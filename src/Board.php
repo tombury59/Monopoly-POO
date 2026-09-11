@@ -66,4 +66,16 @@ class Board {
         }
         return true;
     }
+
+    public function countOwnedByType(Player $player, TileType $type): int {
+        $ownedType=0;
+        foreach($this->tiles as $tile){
+            if ($tile->getType() === $type) {
+                if($tile->getOwner() === $player){
+                    $ownedType+=1;
+                }
+            }
+        }
+        return $ownedType;
+    }
 }
