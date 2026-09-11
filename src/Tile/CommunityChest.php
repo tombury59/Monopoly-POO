@@ -13,7 +13,7 @@ class CommunityChest extends Tile {
     protected function applyEffect(Player $player, Game $game): void {
         $card=array_rand($this->cards);
         $this->cards[$card]->apply($player,$game);
-        // TODO: notify
+        // TODO: notify (card_drawn)
     }
 
     // Source (Community Chest cards, US, classique 2008-2021) :

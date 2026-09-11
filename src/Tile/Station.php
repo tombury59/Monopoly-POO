@@ -39,7 +39,7 @@ class Station extends Tile implements Mortgageable {
             $topay = 25 * (2 ** ($nb - 1));
             $player->removeMoney($topay);
             $this->getOwner()->addMoney($topay);
-            // TODO: notify
+            // TODO: notify (rent_paid)
         }
     }
 

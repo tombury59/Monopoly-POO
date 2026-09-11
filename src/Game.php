@@ -39,7 +39,7 @@ class Game {
         $this->lastDiceTotal=array_sum($dice);
 
         if ($dice[0] === $dice[1]) {
-            // TODO: notify
+            // TODO: notify (jail_escaped_by_double)
             $playingPlayer->setInJail(false);
             $playingPlayer->resetTurnsInJail();
 
@@ -61,6 +61,7 @@ class Game {
                 $playingPlayer->removeMoney(self::JAIL_BAIL);
                 $playingPlayer->setInJail(false);
                 $playingPlayer->resetTurnsInJail();
+                // TODO: notify (jail_forced_release + jail_paid)
                 $this->resolveMovement($playingPlayer, array_sum($dice));
             } catch (InsufficientFundsException $e) {
                 $this->declareBankruptcy($playingPlayer);
@@ -71,7 +72,7 @@ class Game {
             return;
         }
 
-        // TODO: notify
+        // TODO: notify (jail_turn_skipped)
         $this->nextPlayer();
     }
 
@@ -92,6 +93,7 @@ class Game {
 
         $playingPlayer->setInJail(false);
         $playingPlayer->resetTurnsInJail();
+        // TODO: notify (jail_paid)
         $this->playTurn();
     }
 
@@ -108,7 +110,7 @@ class Game {
 
         $playingPlayer->useGetOutOfJailCard();
 
-        // TODO: notify
+        // TODO: notify (jail_card_used)
         $playingPlayer->setInJail(false);
         $playingPlayer->resetTurnsInJail();
 
@@ -128,14 +130,14 @@ class Game {
 
             do {
                 $dice = $this->dice->rollTwo();
-                // TODO: notify
+                // TODO: notify (dice_rolled)
 
                 $isDouble = $dice[0] === $dice[1];
                 $step = $this->lastDiceTotal = array_sum($dice);
 
                 if ($isDouble) {
                     $doublesCount++;
-                    // TODO: notify
+                    // TODO: notify (double_rolled)
                 }
 
                 if ($doublesCount === 3) {
@@ -144,7 +146,7 @@ class Game {
                         throw new MonopolyException("Aucune case GoToJail trouvée sur le plateau.");
                     }
                     $goToJailTile->landOn($playingPlayer, $this);
-                    // TODO: notify
+                    // TODO: notify (three_doubles)
                     break;
                 }
 
@@ -159,7 +161,7 @@ class Game {
             $this->declareBankruptcy($playingPlayer);
         } finally {
             $this->nextPlayer();
-            // TODO: notify
+            // TODO: notify (turn_ended)
         }
     }
 
@@ -170,19 +172,19 @@ class Game {
         // Go::applyEffect() applies and adds another +200
         if (($actualPosition->getIndex() + $step) >= $this->board->getBoardSize()) {
             $player->addMoney(200);
-            // TODO: notify
+            // TODO: notify (passed_go)
         }
 
         $squareToLand = $actualPosition->next($step);
         $player->setPosition($squareToLand);
-        // TODO: notify
+        // TODO: notify (player_moved)
 
         $tile = $this->board->getTileAt($squareToLand);
         if ($tile === null) {
             throw new MonopolyException("Aucune case trouvée à la position {$squareToLand->toKey()}.");
         }
 
-        // TODO: notify
+        // TODO: notify (landed_on_tile)
         $tile->landOn($player, $this);
     }
 
@@ -198,7 +200,7 @@ class Game {
             }
             $player->removeMoney($tile->getPrice());
             $tile->setOwner($player);
-            // TODO: notify
+            // TODO: notify (tile_purchased)
         }
     }
 
@@ -277,6 +279,7 @@ class Game {
         }
         $owner->removeMoney($property->getHousePrice());
         $property->setBuildLevel($property->getBuildLevel() + 1);
+        // TODO: notify (house_built / hotel_built selon le niveau atteint)
     }
 
     public function sellHouse(Property $property): void {
@@ -289,6 +292,7 @@ class Game {
         }
         $owner->addMoney(intdiv($property->getHousePrice(), 2));
         $property->setBuildLevel($property->getBuildLevel() - 1);
+        // TODO: notify (house_sold)
     }
 
     public function getLastDiceTotal(): int {
@@ -306,6 +310,7 @@ class Game {
         }
         $owner->addMoney(intdiv($tile->getPrice(), 2));
         $tile->setMortgaged(true);
+        // TODO: notify (tile_mortgaged)
     }
 
     public function unmortgage(Mortgageable $tile): void {
@@ -321,6 +326,7 @@ class Game {
         $cost = $value + intdiv($value, 10);
         $owner->removeMoney($cost);
         $tile->setMortgaged(false);
+        // TODO: notify (tile_unmortgaged)
     }
 
     private function releaseAssets(Player $player): void {
@@ -347,9 +353,10 @@ class Game {
     }
 
     public function declareBankruptcy(Player $player): void {
-        // TODO: notify (bankruptcy)
+        // TODO: notify (player_bankrupt)
         $this->releaseAssets($player);
         $this->removePlayer($player);
+        // TODO: notify (game_over) si isGameOver() est vrai après le retrait
     }
 
 
