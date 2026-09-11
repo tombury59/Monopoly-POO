@@ -20,9 +20,7 @@ class Chance extends Tile {
     // 2. Advance to Go (Collect $200)
     // 3. Advance to Illinois Avenue. If you pass Go, collect $200
     // 4. Advance to St. Charles Place. If you pass Go, collect $200
-    // TODO: nouveau type
     // 5. Advance to the nearest Railroad (x2)
-    // TODO: nouveau type
     // 6. Advance token to nearest Utility
     // 7. Bank pays you dividend of $50
     // 8. Get Out of Jail Free
@@ -39,6 +37,8 @@ class Chance extends Tile {
             new Card("Avancez jusqu'à la case Départ", CardEffectType::MOVE_TO, 0),
             new Card("Avancez jusqu'à la Rue de Vaugirard, si vous passez par la case Départ, gagnez 200$", CardEffectType::MOVE_TO, 6),
             new Card("Avancez jusqu'à l'Avenue Matignon, si vous passez par la case Départ, gagnez 200$", CardEffectType::MOVE_TO, 21),
+            new Card("Avancez jusqu'à la gare la plus proche", CardEffectType::NEAREST_STATION),
+            new Card("Avancez jusqu'à la compagnie la plus proche", CardEffectType::NEAREST_UTILITY),
             new Card("La banque vous verse un dividende de 50$", CardEffectType::GAIN_MONEY, 50),
             new Card("Sortie de prison gratuite", CardEffectType::EXIT_JAIL, 0),
             new Card("Reculez de 3 cases", CardEffectType::MOVE_STEPS, -3),

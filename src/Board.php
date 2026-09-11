@@ -43,6 +43,17 @@ class Board {
         return null;
     }
 
+    public function findNearestByType(Square $from, TileType $type): ?Square {
+        for( $d=1 ; $d<$this->getBoardSize() ; $d++){
+            $candidate=$from->next($d);
+            $tile=$this->getTileAt($candidate);
+            if($tile !== null && $tile->getType() === $type){
+                return $candidate;
+            }
+        }
+        return null;
+    }
+
     public function ownsWholeGroup(Player $player, ColorGroup $group): bool {
         foreach($this->tiles as $tile){
             if($tile instanceof Property ){

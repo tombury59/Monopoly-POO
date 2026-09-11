@@ -9,7 +9,8 @@ enum CardEffectType{
     case EXIT_JAIL;
     case PAY_ALL;
     case RECEIVE_ALL;
-    // TODO ajouter la derniere carte
+    // TODO ajouter les dernieres carte
     case REPAIR_BUILDINGS;
-    // case NEAREST_UTILITY_OR_RAILROAD;
+    case NEAREST_UTILITY;
+    case NEAREST_STATION;
 }

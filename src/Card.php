@@ -28,6 +28,8 @@ class Card{
             CardEffectType::PAY_ALL =>$this->payOrReceiveAll($player,$game,true),
             CardEffectType::RECEIVE_ALL =>$this->payOrReceiveAll($player,$game,false),
             CardEffectType::REPAIR_BUILDINGS =>$this->repairBuildings($player, $game),
+            CardEffectType::NEAREST_UTILITY => $this->moveToNearest($player, $game, TileType::COMPANY),
+            CardEffectType::NEAREST_STATION => $this->moveToNearest($player, $game, TileType::STATION),
         };
     }
 
@@ -74,8 +76,6 @@ class Card{
     }
 
     private function exitJail(Player $player): void {
-        // $player->setInJail(false);
-        // $player->resetTurnsInJail();
         $player->addGetOutOfJailCard();
     }
     
@@ -98,5 +98,15 @@ class Card{
             }
         }
         $player->removeMoney($nbHouse * $this->value + $nbHotels * $this->hotelValue);
+    }
+
+    private function moveToNearest(Player $player, Game $game, TileType $type): void {
+
+        $target = $game->getBoard()->findNearestByType($player->getPosition(), $type);
+
+        if ($target === null) {
+            throw new MonopolyException("Aucune case de ce type sur le plateau.");
+        }
+        $this->moveTo($player, $game, $target->getIndex());
     }
 }
