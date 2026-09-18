@@ -34,9 +34,12 @@ class Station extends Tile implements Mortgageable {
     }
 
     protected function applyEffect(Player $player, Game $game): void {
+        $parCarte = $game->consumeCardArrival() === CardEffectType::NEAREST_STATION;
+        
         if($this->isOwned() && $this->getOwner() !== $player && !$this->isMortgaged()){
             $nb = $game->getBoard()->countOwnedByType($this->getOwner(), TileType::STATION,true);
             $topay = 25 * (2 ** ($nb - 1));
+            if ($parCarte) $topay *= 2;
             $player->removeMoney($topay);
 
             $owner = $this->getOwner();

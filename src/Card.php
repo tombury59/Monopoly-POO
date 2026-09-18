@@ -120,6 +120,8 @@ class Card{
         if ($target === null) {
             throw new MonopolyException("Aucune case de ce type sur le plateau.");
         }
+
+        $game->markCardArrival($this->effectType);
         $this->moveTo($player, $game, $target->getIndex());
     }
 }

@@ -124,24 +124,11 @@ if ($game->isGameOver()) {
 }
 
 // ---------------------------------------------------------------------------
-// DÉMO DU MODÈLE DE TOUR INTERACTIF (Bloc A.2)
-//
-// Ici on ne joue plus via playTurn() (moteur automatique), mais via la machine
-// à phases : getCurrentPhase() dit où on en est, getAvailableActions() liste ce
-// qui est permis, et on appelle roll() / payBail() / releaseWithCard() /
-// buyCurrentTile() / buildHouse() / sellHouse() / mortgage() /
-// declareBankruptcyInteractive() / endTurn() en conséquence.
-//
-// La politique de décision ci-dessous est volontairement simple (auto-pilotée,
-// sans saisie clavier) pour que la démo tourne d'un bloc et illustre l'enchaînement
-// des phases. Pour une vraie partie « au clavier », remplacer les choix
-// automatiques par des readline() proposant getAvailableActions().
+// Interactive turn-model demo: driven by getCurrentPhase()/getAvailableActions().
+// Auto-piloted (no readline) so it runs in one go.
 // ---------------------------------------------------------------------------
 
-/**
- * Trouve une propriété du joueur revendable : construite ET au niveau maximum de
- * son groupe (contrainte even-build imposée par Game::sellHouse).
- */
+// sellable property (built, at group max: even-build)
 function premiereProprieteConstruite(Game $game, Player $joueur): ?Property {
     $board = $game->getBoard();
     foreach ($board->getTiles() as $tile) {
@@ -153,7 +140,7 @@ function premiereProprieteConstruite(Game $game, Player $joueur): ?Property {
     return null;
 }
 
-/** Trouve une case hypothéquable du joueur : non hypothéquée et sans construction. */
+// mortgageable tile (not mortgaged, no houses)
 function premiereHypothecable(Game $game, Player $joueur): ?Mortgageable {
     foreach ($game->getBoard()->getTiles() as $tile) {
         if ($tile instanceof Mortgageable && $tile->getOwner() === $joueur && !$tile->isMortgaged()
@@ -171,12 +158,12 @@ $demo->addObserver(new ConsoleGameObserver());
 $demo->start();
 
 $toursJoues  = 0;
-$TOURS_DEMO  = 40; // on borne la démo pour garder une sortie lisible
+$TOURS_DEMO  = 40; // bounded for readable output
 
 while (!$demo->isGameOver() && $toursJoues < $TOURS_DEMO) {
     $phase = $demo->getCurrentPhase();
 
-    // Contrat : en TURN_OVER on n'appelle QUE endTurn() (ne pas lire getCurrentPlayer avant).
+    // TURN_OVER: only endTurn()
     if ($phase === TurnPhase::TURN_OVER) {
         $demo->endTurn();
         $toursJoues++;
@@ -189,7 +176,6 @@ while (!$demo->isGameOver() && $toursJoues < $TOURS_DEMO) {
     switch ($phase) {
         case TurnPhase::AWAITING_ROLL:
             if ($joueur->isInJail()) {
-                // Politique : utiliser une carte si on en a, sinon payer 1 fois sur 2, sinon tenter les dés.
                 if (in_array(PlayerAction::USE_JAIL_CARD, $actions, true)) {
                     $demo->releaseWithCard();
                 } elseif (in_array(PlayerAction::PAY_BAIL, $actions, true)
@@ -205,9 +191,8 @@ while (!$demo->isGameOver() && $toursJoues < $TOURS_DEMO) {
             break;
 
         case TurnPhase::AWAITING_ACTION:
-            // Achat de la case si libre, puis construction sur les groupes complets, puis fin de tour.
             if (in_array(PlayerAction::BUY_TILE, $actions, true)) {
-                try { $demo->buyCurrentTile($joueur); } catch (MonopolyException $e) { /* ignore en démo */ }
+                try { $demo->buyCurrentTile($joueur); } catch (MonopolyException $e) { /* ignore */ }
             }
             foreach ($demo->getBoard()->getTiles() as $tile) {
                 if ($tile instanceof Property && $tile->getOwner() === $joueur) {
@@ -218,8 +203,7 @@ while (!$demo->isGameOver() && $toursJoues < $TOURS_DEMO) {
             break;
 
         case TurnPhase::AWAITING_LIQUIDATION:
-            // Réunir des fonds : revendre une maison, sinon hypothéquer, sinon faire faillite.
-            // (sellHouse/mortgage règlent automatiquement la dette dès que possible → TURN_OVER.)
+            // raise funds: sell, else mortgage, else bankrupt (auto-settles when possible)
             if (in_array(PlayerAction::SELL_HOUSE, $actions, true)
                 && ($prop = premiereProprieteConstruite($demo, $joueur)) !== null) {
                 $demo->sellHouse($prop);

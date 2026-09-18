@@ -34,23 +34,30 @@ class Company extends Tile implements Mortgageable{
     }
 
     protected function applyEffect(Player $player, Game $game): void {
+        $parCarte = $game->consumeCardArrival() === CardEffectType::NEAREST_UTILITY;
+
         if (!$this->isOwned() || $this->getOwner() === $player || $this->isMortgaged()) {
             return;
         }
 
         $owner = $this->getOwner();
-        $nbCompany = $game->getBoard()->countOwnedByType($owner, TileType::COMPANY,true);
-        $multiplier = match ($nbCompany) {
-            1 => 4,
-            2 => 10,
-            default => 0,
-        };
 
-        if ($multiplier === 0) {
-            return;
+        if ($parCarte) {
+            $toPay = $game->rollForCardRent() * 10;   // card: 10x reroll
+        } else {
+            $nbCompany = $game->getBoard()->countOwnedByType($owner, TileType::COMPANY, true);
+            $multiplier = match ($nbCompany) {
+                1 => 4,
+                2 => 10,
+                default => 0,
+            };
+
+            if ($multiplier === 0) {
+                return;
+            }
+
+            $toPay = $game->getLastDiceTotal() * $multiplier;
         }
-
-        $toPay = $game->getLastDiceTotal() * $multiplier;
 
         $player->removeMoney($toPay);
         $owner->addMoney($toPay);
