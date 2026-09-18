@@ -27,6 +27,9 @@ class Game {
 
     private GameRules $rules;
 
+    // additional content
+    private int $freeParkingPot = 0;
+
 
 
     public function __construct(array $playerNames, ?GameRules $rules = null) {
@@ -715,6 +718,16 @@ class Game {
 
     public function getRules(): GameRules {
         return $this->rules;
+    }
+
+    public function addToFreeParkingPot(int $amount): void {
+        $this->freeParkingPot += $amount;
+    }
+
+    public function collectFreeParkingPot(): int {
+        $pot = $this->freeParkingPot;
+        $this->freeParkingPot = 0;
+        return $pot;
     }
 
 }

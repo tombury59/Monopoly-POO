@@ -8,6 +8,13 @@ class FreeParking extends Tile {
     }
 
     protected function applyEffect(Player $player, Game $game): void {
-        // TODO gagner tout l'argent récolté au millieu du plateau
+        if (!$game->getRules()->isFreeParkingJackpotEnabled()) {
+            return;
+        }
+        $pot = $game->collectFreeParkingPot();
+        if ($pot > 0) {
+            $player->addMoney($pot);
+            $game->emit(GameEventType::MONEY_GAINED, ['player' => $player->getName(), 'amount' => $pot]);
+        }
     }
 }
