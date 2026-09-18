@@ -48,6 +48,8 @@ class ConsoleGameObserver implements GameObserver {
                 "{$c['player']} remet en jeu {$c['tile']}.",
             GameEventType::TILE_BOUGHT_OUT =>
                 "{$c['player']} rachète {$c['tile']} à {$c['owner']} pour {$c['price']}.",
+            GameEventType::TRADE_COMPLETED =>
+                "Échange entre {$c['a']} et {$c['b']} (argent {$c['a']}->{$c['b']} : {$c['money']}).",
 
             // dice / specials turns
             GameEventType::DOUBLE_ROLLED =>

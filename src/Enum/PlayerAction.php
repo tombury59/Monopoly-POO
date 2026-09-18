@@ -13,5 +13,5 @@ enum PlayerAction: string
     case DECLARE_BANKRUPTCY = 'declare_bankruptcy';
     case END_TURN           = 'end_turn';
     case BUYOUT_TILE        = 'buyout_tile';
-    // TODO : PROPOSE_TRADE
+    case PROPOSE_TRADE      = 'propose_trade';
 }

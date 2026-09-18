@@ -514,6 +514,9 @@ class Game {
             $actions[] = PlayerAction::MORTGAGE;
             $actions[] = PlayerAction::UNMORTGAGE;
         }
+        if (count($this->players) > 1) {
+            $actions[] = PlayerAction::PROPOSE_TRADE;
+        }
 
         return $actions;
     }
@@ -780,6 +783,57 @@ class Game {
             'player' => $acheteur->getName(), 'tile' => $bien->getName(),
             'owner'  => $owner->getName(),    'price' => $prix,
         ]);
+    }
+
+    /**
+     * Atomic swap of tiles and/or money between two players.
+     * @param Mortgageable[] $biensDeA tiles A gives to B
+     * @param Mortgageable[] $biensDeB tiles B gives to A
+     */
+    public function trade(Player $a, Player $b, array $biensDeA, array $biensDeB, int $argentDeAversB = 0): void {
+        if ($a === $b) {
+            throw new InvalidPlayerActionException("Un joueur ne peut pas échanger avec lui-même.");
+        }
+
+        // validate everything before mutating anything
+        $this->checkTradeSide($biensDeA, $a);
+        $this->checkTradeSide($biensDeB, $b);
+        if ($argentDeAversB > 0 && $a->getMoney() < $argentDeAversB) {
+            throw new InvalidPlayerActionException("A n'a pas les fonds pour la soulte.");
+        }
+        if ($argentDeAversB < 0 && $b->getMoney() < -$argentDeAversB) {
+            throw new InvalidPlayerActionException("B n'a pas les fonds pour la soulte.");
+        }
+
+        // transfers (reuse existing setOwner / add/removeMoney)
+        foreach ($biensDeA as $bien) $bien->setOwner($b);
+        foreach ($biensDeB as $bien) $bien->setOwner($a);
+        if ($argentDeAversB > 0) {
+            $a->removeMoney($argentDeAversB);
+            $b->addMoney($argentDeAversB);
+        } elseif ($argentDeAversB < 0) {
+            $b->removeMoney(-$argentDeAversB);
+            $a->addMoney(-$argentDeAversB);
+        }
+
+        $this->emit(GameEventType::TRADE_COMPLETED, [
+            'a' => $a->getName(), 'b' => $b->getName(),
+            'biensDeA' => array_map(fn(Mortgageable $t) => $t->getName(), $biensDeA),
+            'biensDeB' => array_map(fn(Mortgageable $t) => $t->getName(), $biensDeB),
+            'money' => $argentDeAversB,
+        ]);
+    }
+
+    // each tile must belong to $owner and carry no buildings
+    private function checkTradeSide(array $biens, Player $owner): void {
+        foreach ($biens as $bien) {
+            if (!($bien instanceof Mortgageable) || $bien->getOwner() !== $owner) {
+                throw new InvalidPlayerActionException("Bien non possédé par le bon joueur.");
+            }
+            if ($bien instanceof Property && $bien->getBuildLevel() > 0) {
+                throw new InvalidPlayerActionException("Un bien construit ne peut pas être échangé.");
+            }
+        }
     }
 
 }
