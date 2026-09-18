@@ -1,42 +1,6 @@
 <?php
 
-require_once __DIR__ . '/src/Enum/GameEventType.php';
-require_once __DIR__ . '/src/Enum/TurnPhase.php';
-require_once __DIR__ . '/src/Enum/PlayerAction.php';
-require_once __DIR__ . '/src/GameEvent.php';
-require_once __DIR__ . '/src/Config/GameRules.php';
-require_once __DIR__ . '/src/Contract/GameObserver.php';
-require_once __DIR__ . '/src/Observer/FreeParkingObserver.php';
-require_once __DIR__ . '/src/Observer/ConsoleGameObserver.php';
-require_once __DIR__ . '/src/Contract/Renderable.php';
-require_once __DIR__ . '/src/Contract/Mortgageable.php';
-require_once __DIR__ . '/src/Enum/TileType.php';
-require_once __DIR__ . '/src/Enum/ColorGroup.php';
-require_once __DIR__ . '/src/Enum/CardEffectType.php';
-require_once __DIR__ . '/src/Square.php';
-require_once __DIR__ . '/src/Dice.php';
-require_once __DIR__ . '/src/Exception/MonopolyException.php';
-require_once __DIR__ . '/src/Exception/InsufficientFundsException.php';
-require_once __DIR__ . '/src/Exception/TileNotOwnableException.php';
-require_once __DIR__ . '/src/Exception/AlreadyOwnedException.php';
-require_once __DIR__ . '/src/Exception/InvalidPlayerActionException.php';
-require_once __DIR__ . '/src/Exception/InvalidPropertyLevelException.php';
-require_once __DIR__ . '/src/Player.php';
-require_once __DIR__ . '/src/Board.php';
-require_once __DIR__ . '/src/Card.php';
-require_once __DIR__ . '/src/Tile/Tile.php';
-require_once __DIR__ . '/src/Tile/Go.php';
-require_once __DIR__ . '/src/Tile/Jail.php';
-require_once __DIR__ . '/src/Tile/FreeParking.php';
-require_once __DIR__ . '/src/Tile/GoToJail.php';
-require_once __DIR__ . '/src/Tile/Chance.php';
-require_once __DIR__ . '/src/Tile/CommunityChest.php';
-require_once __DIR__ . '/src/Tile/Tax.php';
-require_once __DIR__ . '/src/Tile/Station.php';
-require_once __DIR__ . '/src/Tile/Company.php';
-require_once __DIR__ . '/src/Tile/Property.php';
-require_once __DIR__ . '/src/Factory/TileFactory.php';
-require_once __DIR__ . '/src/Game.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
 function ligne(string $titre = ''): void
 {
