@@ -21,6 +21,7 @@ enum GameEventType: string
     case HOUSE_SOLD       = 'house_sold';
     case TILE_MORTGAGED   = 'tile_mortgaged';
     case TILE_UNMORTGAGED = 'tile_unmortgaged';
+    case TILE_BOUGHT_OUT  = 'tile_bought_out';
 
     // dice / specials turns
     case DOUBLE_ROLLED = 'double_rolled';

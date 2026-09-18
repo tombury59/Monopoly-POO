@@ -300,16 +300,24 @@ class Game {
 
     public function buildHouse(Property $property): void {
         $owner = $property->getOwner();
-        if($owner === null || !$this->board->ownsWholeGroup($owner, $property->getColorGroup())){
-            throw new InvalidPlayerActionException("Le propriétaire ne possède pas tout le groupe.");
-        }
+        if($owner === null) throw new InvalidPlayerActionException("La case n'a pas de propriétaire.");
         if($property->getBuildLevel() === 5) throw new InvalidPlayerActionException("Hôtel déjà présent.");
 
-        if ($property->getBuildLevel() > $this->board->minBuildLevelInGroup($property->getColorGroup())) {
-            throw new InvalidPlayerActionException("La case n'est pas le minimum du groupe.");
-        }
-        if ($this->board->groupHasMortgage($property->getColorGroup())) {
-            throw new InvalidPlayerActionException("Impossible de construire : une case du groupe est hypothéquée.");
+        if ($this->rules->isBusinessTourEnabled()) {
+            // build only on the tile the owner stands on; no group rules
+            if ($owner->getPosition()->getIndex() !== $property->getPosition()->getIndex()) {
+                throw new InvalidPlayerActionException("Business Tour : on ne construit que sur la case où l'on est.");
+            }
+        } else {
+            if (!$this->board->ownsWholeGroup($owner, $property->getColorGroup())) {
+                throw new InvalidPlayerActionException("Le propriétaire ne possède pas tout le groupe.");
+            }
+            if ($property->getBuildLevel() > $this->board->minBuildLevelInGroup($property->getColorGroup())) {
+                throw new InvalidPlayerActionException("La case n'est pas le minimum du groupe.");
+            }
+            if ($this->board->groupHasMortgage($property->getColorGroup())) {
+                throw new InvalidPlayerActionException("Impossible de construire : une case du groupe est hypothéquée.");
+            }
         }
         $owner->removeMoney($property->getHousePrice());
         $property->setBuildLevel($property->getBuildLevel() + 1);
@@ -319,11 +327,14 @@ class Game {
 
     public function sellHouse(Property $property): void {
         $owner = $property->getOwner();
-        if($owner === null || !$this->board->ownsWholeGroup($owner, $property->getColorGroup())) throw new InvalidPlayerActionException("Le propriétaire ne possède pas tout le groupe.");
+        if($owner === null) throw new InvalidPlayerActionException("La case n'a pas de propriétaire.");
         if($property->getBuildLevel() === 0) throw new InvalidPlayerActionException("Aucune construction à revendre.");
 
-        if($property->getBuildLevel() < $this->board->maxBuildLevelInGroup($property->getColorGroup())) {
-            throw new InvalidPlayerActionException("La case n'est pas le maximum du groupe.");
+        if (!$this->rules->isBusinessTourEnabled()) {
+            if (!$this->board->ownsWholeGroup($owner, $property->getColorGroup())) throw new InvalidPlayerActionException("Le propriétaire ne possède pas tout le groupe.");
+            if ($property->getBuildLevel() < $this->board->maxBuildLevelInGroup($property->getColorGroup())) {
+                throw new InvalidPlayerActionException("La case n'est pas le maximum du groupe.");
+            }
         }
         $owner->addMoney(intdiv($property->getHousePrice(), 2));
         $property->setBuildLevel($property->getBuildLevel() - 1);
@@ -481,7 +492,21 @@ class Game {
             }
         }
 
-        if ($ownsProperty) {
+        if ($this->rules->isBusinessTourEnabled()) {
+            // build only on the current tile if owned
+            if ($tile instanceof Property && $tile->getOwner() === $player && $tile->getBuildLevel() < 5) {
+                $actions[] = PlayerAction::BUILD_HOUSE;
+            }
+            if ($ownsProperty) $actions[] = PlayerAction::SELL_HOUSE;
+            // buyout an opponent's bare, unmortgaged tile
+            if ($tile instanceof Mortgageable
+                && $tile->getOwner() !== null
+                && $tile->getOwner() !== $player
+                && !$tile->isMortgaged()
+                && !($tile instanceof Property && $tile->getBuildLevel() > 0)) {
+                $actions[] = PlayerAction::BUYOUT_TILE;
+            }
+        } elseif ($ownsProperty) {
             $actions[] = PlayerAction::BUILD_HOUSE;
             $actions[] = PlayerAction::SELL_HOUSE;
         }
@@ -728,6 +753,33 @@ class Game {
         $pot = $this->freeParkingPot;
         $this->freeParkingPot = 0;
         return $pot;
+    }
+
+    public const BUYOUT_MULTIPLIER = 2;
+
+    // Business Tour: buy an opponent's bare tile (rent already paid on landing)
+    public function buyoutTile(Player $acheteur, Mortgageable $bien): void {
+        if (!$this->rules->isBusinessTourEnabled()) {
+            throw new InvalidPlayerActionException("Le rachat n'est pas activé.");
+        }
+        $owner = $bien->getOwner();
+        if ($owner === null || $owner === $acheteur) {
+            throw new InvalidPlayerActionException("Cette case n'appartient pas à un adversaire.");
+        }
+        if ($bien->isMortgaged() || ($bien instanceof Property && $bien->getBuildLevel() > 0)) {
+            throw new InvalidPlayerActionException("Rachat impossible : case construite ou hypothéquée.");
+        }
+        $prix = self::BUYOUT_MULTIPLIER * $bien->getPrice();
+        if ($acheteur->getMoney() < $prix) {
+            throw new InvalidPlayerActionException("Fonds insuffisants pour racheter.");
+        }
+        $acheteur->removeMoney($prix);
+        $owner->addMoney($prix);
+        $bien->setOwner($acheteur);
+        $this->emit(GameEventType::TILE_BOUGHT_OUT, [
+            'player' => $acheteur->getName(), 'tile' => $bien->getName(),
+            'owner'  => $owner->getName(),    'price' => $prix,
+        ]);
     }
 
 }

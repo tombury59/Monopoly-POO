@@ -46,6 +46,8 @@ class ConsoleGameObserver implements GameObserver {
                 "{$c['player']} hypothèque {$c['tile']}.",
             GameEventType::TILE_UNMORTGAGED =>
                 "{$c['player']} remet en jeu {$c['tile']}.",
+            GameEventType::TILE_BOUGHT_OUT =>
+                "{$c['player']} rachète {$c['tile']} à {$c['owner']} pour {$c['price']}.",
 
             // dice / specials turns
             GameEventType::DOUBLE_ROLLED =>

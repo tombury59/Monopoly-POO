@@ -2,18 +2,18 @@
 
 class GameRules {
     private bool $freeParkingJackpot;
-    private bool $propertyBuyout;
+    private bool $businessTour;
 
-    public function __construct(bool $freeParkingJackpot = false, bool $propertyBuyout = false) {
+    public function __construct(bool $freeParkingJackpot = false, bool $businessTour = false) {
         $this->freeParkingJackpot = $freeParkingJackpot;
-        $this->propertyBuyout     = $propertyBuyout;
+        $this->businessTour       = $businessTour;
     }
 
     public function isFreeParkingJackpotEnabled(): bool {
         return $this->freeParkingJackpot;
     }
 
-    public function isPropertyBuyoutEnabled(): bool {
-        return $this->propertyBuyout;
+    public function isBusinessTourEnabled(): bool {
+        return $this->businessTour;
     }
 }
