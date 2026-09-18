@@ -18,6 +18,10 @@ class Game {
     private TurnPhase $phase = TurnPhase::AWAITING_ROLL;
     private int $doublesCount = 0;
 
+    // Dept 
+    private int $pendingDebt = 0;
+    private ?Player $pendingCreditor = null;
+
 
 
     public function __construct(array $playerNames) {
@@ -315,6 +319,8 @@ class Game {
         $owner->addMoney(intdiv($property->getHousePrice(), 2));
         $property->setBuildLevel($property->getBuildLevel() - 1);
         $this->emit(GameEventType::HOUSE_SOLD, ['player' => $owner->getName(), 'tile' => $property->getName(), 'price' => intdiv($property->getHousePrice(), 2)]);
+
+        if ($this->phase === TurnPhase::AWAITING_LIQUIDATION) $this->tryAutoSettle();
     }
 
     public function getLastDiceTotal(): int {
@@ -333,6 +339,8 @@ class Game {
         $owner->addMoney(intdiv($tile->getPrice(), 2));
         $tile->setMortgaged(true);
         $this->emit(GameEventType::TILE_MORTGAGED, ['player' => $owner->getName(), 'tile' => $tile->getName()]);
+
+        if ($this->phase === TurnPhase::AWAITING_LIQUIDATION) $this->tryAutoSettle();
     }
 
     public function unmortgage(Mortgageable $tile): void {
@@ -477,7 +485,25 @@ class Game {
     }
 
     private function actionsAwaitingLiquidation(Player $player): array {
-        return [];
+        // La faillite est toujours possible ; vendre/hypothéquer seulement si le joueur a de quoi.
+        $actions = [PlayerAction::DECLARE_BANKRUPTCY];
+
+        $ownsBuilt        = false;
+        $ownsMortgageable = false;
+
+        foreach ($this->board->getTiles() as $t) {
+            if ($t instanceof Mortgageable && $t->getOwner() === $player && !$t->isMortgaged()) {
+                $ownsMortgageable = true;
+            }
+            if ($t instanceof Property && $t->getOwner() === $player && $t->getBuildLevel() > 0) {
+                $ownsBuilt = true;
+            }
+        }
+
+        if ($ownsBuilt)        $actions[] = PlayerAction::SELL_HOUSE;
+        if ($ownsMortgageable) $actions[] = PlayerAction::MORTGAGE;
+
+        return $actions;
     }
 
     public function endTurn(): void {
@@ -494,8 +520,13 @@ class Game {
 
         $player = $this->getCurrentPlayer();
 
-        // TODO prison cas => for now player is free
+        // ---- Cas prison : le joueur a choisi de tenter les dés (règle des 3 tentatives) ----
+        if ($player->isInJail()) {
+            $this->rollFromJail($player);
+            return;
+        }
 
+        // ---- Cas normal ----
         $dice = $this->dice->rollTwo();
         $this->emit(GameEventType::DICE_ROLLED, ['dice1' => $dice[0], 'dice2' => $dice[1]]);
 
@@ -521,10 +552,8 @@ class Game {
         try {
             $this->resolveMovement($player, $step);
         } catch (InsufficientFundsException $e) {
-                $this->declareBankruptcy($player);
-                $this->phase=TurnPhase::TURN_OVER;
-                return;
-                // TODO implement interactive liquidation
+            $this->enterLiquidation($e);
+            return;
         }
 
         if (!in_array($player, $this->players, true)) {
@@ -539,6 +568,134 @@ class Game {
         } else {
             $this->phase = TurnPhase::AWAITING_ACTION;
         }
+    }
+
+    /**
+     * Tentative de sortie de prison aux dés (règle complète des 3 tentatives).
+     * Sortir par un double ne redonne pas de tour : le tour finit toujours en TURN_OVER.
+     */
+    private function rollFromJail(Player $player): void {
+        $dice = $this->dice->rollTwo();
+        $this->emit(GameEventType::DICE_ROLLED, ['dice1' => $dice[0], 'dice2' => $dice[1]]);
+        $this->lastDiceTotal = array_sum($dice);
+        $isDouble = $dice[0] === $dice[1];
+
+        if ($isDouble) {
+            $this->emit(GameEventType::JAIL_ESCAPED_BY_DOUBLE, ['player' => $player->getName()]);
+            $player->setInJail(false);
+            $player->resetTurnsInJail();
+            try {
+                $this->resolveMovement($player, $this->lastDiceTotal);
+            } catch (InsufficientFundsException $e) {
+                $this->enterLiquidation($e);
+                return;
+            }
+            $this->phase = TurnPhase::TURN_OVER;
+            return;
+        }
+
+        $player->addTurnsInJail();
+
+        if ($player->getTurnsInJail() >= 3) {
+            // 3e échec : caution obligatoire (règle Monopoly).
+            try {
+                $player->removeMoney(self::JAIL_BAIL);
+            } catch (InsufficientFundsException $e) {
+                // Insolvable sur une caution forcée : faillite directe (cas marginal).
+                $this->declareBankruptcy($player);
+                $this->phase = TurnPhase::TURN_OVER;
+                return;
+            }
+            $player->setInJail(false);
+            $player->resetTurnsInJail();
+            $this->emit(GameEventType::JAIL_FORCED_RELEASE, ['player' => $player->getName()]);
+            $this->emit(GameEventType::JAIL_PAID, ['player' => $player->getName(), 'amount' => self::JAIL_BAIL]);
+            try {
+                $this->resolveMovement($player, $this->lastDiceTotal);
+            } catch (InsufficientFundsException $e) {
+                $this->enterLiquidation($e);
+                return;
+            }
+            $this->phase = TurnPhase::TURN_OVER;
+            return;
+        }
+
+        // Échec, moins de 3 tentatives : le joueur reste en prison.
+        $this->emit(GameEventType::JAIL_TURN_SKIPPED, ['player' => $player->getName()]);
+        $this->phase = TurnPhase::TURN_OVER;
+    }
+
+    /** Sortie volontaire en payant la caution. La phase reste AWAITING_ROLL (le joueur relance ensuite). */
+    public function payBail(): void {
+        if ($this->phase !== TurnPhase::AWAITING_ROLL) {
+            throw new InvalidPlayerActionException("Ce n'est pas le moment de payer la caution.");
+        }
+        $player = $this->getCurrentPlayer();
+        if (!$player->isInJail()) {
+            throw new InvalidPlayerActionException("Le joueur n'est pas en prison.");
+        }
+        if ($player->getMoney() < self::JAIL_BAIL) {
+            throw new InvalidPlayerActionException("Fonds insuffisants pour payer la caution.");
+        }
+        $player->removeMoney(self::JAIL_BAIL);
+        $player->setInJail(false);
+        $player->resetTurnsInJail();
+        $this->emit(GameEventType::JAIL_PAID, ['player' => $player->getName(), 'amount' => self::JAIL_BAIL]);
+        // phase reste AWAITING_ROLL
+    }
+
+    /** Sortie volontaire avec une carte « Sortie de prison ». La phase reste AWAITING_ROLL. */
+    public function releaseWithCard(): void {
+        if ($this->phase !== TurnPhase::AWAITING_ROLL) {
+            throw new InvalidPlayerActionException("Ce n'est pas le moment d'utiliser la carte.");
+        }
+        $player = $this->getCurrentPlayer();
+        if (!$player->isInJail()) {
+            throw new InvalidPlayerActionException("Le joueur n'est pas en prison.");
+        }
+        if (!$player->hasGetOutOfJailCard()) {
+            throw new InvalidPlayerActionException("Le joueur n'a pas de carte de sortie de prison.");
+        }
+        $player->useGetOutOfJailCard();
+        $player->setInJail(false);
+        $player->resetTurnsInJail();
+        $this->emit(GameEventType::JAIL_CARD_USED, ['player' => $player->getName()]);
+        // phase reste AWAITING_ROLL
+    }
+
+    /** Entre en phase de liquidation en mémorisant la dette (montant + créancier). */
+    private function enterLiquidation(InsufficientFundsException $e): void {
+        $this->pendingDebt     = $e->getAmount();
+        $this->pendingCreditor = $e->getCreditor();
+        $this->phase           = TurnPhase::AWAITING_LIQUIDATION;
+    }
+
+    /** Si le joueur a réuni assez d'argent, règle la dette, paie le créancier et clôt le tour. */
+    private function tryAutoSettle(): void {
+        $player = $this->getCurrentPlayer();
+        if ($player->getMoney() < $this->pendingDebt) {
+            return;
+        }
+        $player->removeMoney($this->pendingDebt);
+        if ($this->pendingCreditor !== null) {
+            $this->pendingCreditor->addMoney($this->pendingDebt);
+        }
+        $this->emit(GameEventType::MONEY_LOST, ['player' => $player->getName(), 'amount' => $this->pendingDebt]);
+        $this->pendingDebt     = 0;
+        $this->pendingCreditor = null;
+        $this->phase           = TurnPhase::TURN_OVER;
+    }
+
+    /** Abandon volontaire pendant la liquidation : le joueur fait faillite. */
+    public function declareBankruptcyInteractive(): void {
+        if ($this->phase !== TurnPhase::AWAITING_LIQUIDATION) {
+            throw new InvalidPlayerActionException("Aucune faillite à déclarer hors liquidation.");
+        }
+        $player = $this->getCurrentPlayer();
+        $this->pendingDebt     = 0;
+        $this->pendingCreditor = null;
+        $this->declareBankruptcy($player);
+        $this->phase = TurnPhase::TURN_OVER;
     }
 
 }

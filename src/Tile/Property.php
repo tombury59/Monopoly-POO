@@ -64,8 +64,14 @@ class Property extends Tile implements Mortgageable{
                     $amount *= 2;
             }
 
-            $player->removeMoney($amount);
             $owner=$this->getOwner();
+            try {
+                $player->removeMoney($amount);
+            } catch (InsufficientFundsException $e) {
+                // On enrichit la dette avec le créancier pour que la liquidation le paie.
+                $e->setCreditor($owner);
+                throw $e;
+            }
             $owner->addMoney($amount);
             
             $game->emit(GameEventType::RENT_PAID, ['player' => $player->getName(), 'amount' => $amount, 'tile' => $this->getName(), 'owner' => $owner->getName()]);

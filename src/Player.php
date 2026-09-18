@@ -28,7 +28,7 @@ class Player {
     }
 
     public function removeMoney(int $amount): void {
-        if($amount>$this->money) throw new InsufficientFundsException("Le joueur n'a pas les fonds nécessaires pour payer la somme.");
+        if($amount>$this->money) throw new InsufficientFundsException("Le joueur n'a pas les fonds nécessaires pour payer la somme.", $amount);
         $this->money -= $amount;
     }
 
