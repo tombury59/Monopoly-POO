@@ -25,15 +25,18 @@ class Game {
     // set by a card, consumed by Station/Company applyEffect
     private ?CardEffectType $pendingCardArrival = null;
 
+    private GameRules $rules;
 
 
-    public function __construct(array $playerNames) {
+
+    public function __construct(array $playerNames, ?GameRules $rules = null) {
         foreach($playerNames as $playerName){
             $this->players[] = new Player($playerName);
         }
         $this->board = new Board();
         $this->dice = new Dice(6);
         $this->tileFactory = new TileFactory();
+        $this->rules = $rules ?? new GameRules();
     }
 
     public function start(): void {
@@ -708,6 +711,10 @@ class Game {
         $dice = $this->dice->rollTwo();
         $this->emit(GameEventType::DICE_ROLLED, ['dice1' => $dice[0], 'dice2' => $dice[1]]);
         return array_sum($dice);
+    }
+
+    public function getRules(): GameRules {
+        return $this->rules;
     }
 
 }
